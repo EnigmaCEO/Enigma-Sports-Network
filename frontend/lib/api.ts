@@ -2,6 +2,20 @@
 import type { GameEvent } from "../types/events";
 
 const RAW_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "";
+// Optional server-only Vercel bypass token. Set this in Vercel/project or your server env:
+// VERCEL_BYPASS_TOKEN="...."
+const VERCEL_BYPASS_TOKEN = process.env.VERCEL_BYPASS_TOKEN || null;
+
+function maybeAppendVercelBypass(url: string): string {
+  // Only append on the server (Node) and when a token is configured.
+  if (typeof window !== "undefined") return url;
+  if (!VERCEL_BYPASS_TOKEN) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  // Append the parameters documented by Vercel for protection bypass.
+  return `${url}${sep}x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${encodeURIComponent(
+    VERCEL_BYPASS_TOKEN
+  )}`;
+}
 
 function getBaseUrl(): string {
   // Prefer explicit public API base, then Vercel-provided host, then localhost fallback.
@@ -31,17 +45,18 @@ export async function getTimeline(gameId: string): Promise<unknown[]> {
     // Use an absolute URL on the server (Node) and a relative URL in the browser.
     const path = `/api/timeline?gameId=${encodeURIComponent(gameId)}`;
     const url = typeof window === "undefined" ? buildUrl(path) : path;
-    const res = await fetch(url, { cache: "no-store" });
+    const fetchUrl = typeof window === "undefined" ? maybeAppendVercelBypass(url) : url;
+    const res = await fetch(fetchUrl, { cache: "no-store" });
     const contentType = res.headers.get("content-type") ?? "";
 
     // If deployment protection returned HTML (401) or other non-JSON, return empty array
     if (!res.ok || contentType.includes("text/html")) {
-      console.warn("[getTimeline] non-JSON or error response", { url, status: res.status, contentType });
+      console.warn("[getTimeline] non-JSON or error response", { url: fetchUrl, status: res.status, contentType });
       return [];
     }
 
     if (!contentType.includes("application/json")) {
-      console.warn("[getTimeline] unexpected content-type (not JSON)", { url, contentType });
+      console.warn("[getTimeline] unexpected content-type (not JSON)", { url: fetchUrl, contentType });
       return [];
     }
 
@@ -59,7 +74,8 @@ export async function ingestEvent(event: unknown) {
   try {
     const path = "/api/ingest";
     const url = typeof window === "undefined" ? buildUrl(path) : path;
-    const res = await fetch(url, {
+    const fetchUrl = typeof window === "undefined" ? maybeAppendVercelBypass(url) : url;
+    const res = await fetch(fetchUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),
@@ -90,7 +106,8 @@ export async function ingestMockEvents(gameId: string) {
 
 export async function startMockGame(): Promise<{ gameId: string }> {
   const url = buildUrl("/mock-game");
-  const res = await fetch(url, {
+  const fetchUrl = maybeAppendVercelBypass(url);
+  const res = await fetch(fetchUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
