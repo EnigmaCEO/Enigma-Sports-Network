@@ -26,28 +26,40 @@ async function parseJsonSafe<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function getTimeline(gameId: string): Promise<GameEvent[]> {
-  if (!gameId) throw new Error("getTimeline: missing required gameId");
+export async function getTimeline(gameId: string): Promise<unknown[]> {
+  try {
+    // Use an absolute URL on the server (Node) and a relative URL in the browser.
+    const path = `/api/timeline?gameId=${encodeURIComponent(gameId)}`;
+    const url = typeof window === "undefined" ? buildUrl(path) : path;
+    const res = await fetch(url, { cache: "no-store" });
+    const contentType = res.headers.get("content-type") ?? "";
 
-  console.log(`Fetching timeline for gameId=${gameId}`);
-  // Use the existing proxy route that forwards to the timeline Lambda
-  const url = buildUrl(`/api/timeline?gameId=${encodeURIComponent(gameId)}`);
-  console.log(`Timeline URL: ${url}`);
-  const res = await fetch(url, { method: "GET", cache: "no-store" });
+    // If deployment protection returned HTML (401) or other non-JSON, return empty array
+    if (!res.ok || contentType.includes("text/html")) {
+      console.warn("[getTimeline] non-JSON or error response", { url, status: res.status, contentType });
+      return [];
+    }
 
-  console.log(`Received timeline response for gameId=${gameId}: ${res.status}`);
-  const data = await parseJsonSafe<GameEvent[] | { timeline: GameEvent[] }>(res);
-  // Accept either an array directly or an object with a 'timeline' array
-  if (Array.isArray(data)) return data as GameEvent[];
-  if (data && Array.isArray(data.timeline)) return data.timeline as GameEvent[];
-  throw new Error("getTimeline: unexpected response shape, expected array or { timeline: GameEvent[] }");
+    if (!contentType.includes("application/json")) {
+      console.warn("[getTimeline] unexpected content-type (not JSON)", { url, contentType });
+      return [];
+    }
+
+    const json = await res.json();
+    return Array.isArray(json?.timeline) ? json.timeline : [];
+  } catch (err) {
+    console.error("[getTimeline] fetch error:", err);
+    return [];
+  }
 }
 
 export async function ingestEvent(event: unknown) {
   // Sends a single ESN event to the ingest endpoint as JSON.
   // Adjust the URL if your ingest Lambda is mounted elsewhere.
   try {
-    const res = await fetch("/api/ingest", {
+    const path = "/api/ingest";
+    const url = typeof window === "undefined" ? buildUrl(path) : path;
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),

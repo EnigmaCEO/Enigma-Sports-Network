@@ -4,6 +4,7 @@ import useRealtime from "./hooks/useRealtime";
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import fetchJson from "../lib/fetchJson";
 
 interface TimelineItem {
   id?: string;
@@ -67,10 +68,14 @@ export default function Home() {
   // single reusable loader
   async function loadTimeline() {
     try {
-      const res = await fetch("/api/timeline?gameId=0");
-      if (!res.ok) return;
-      const json = await res.json();
-      const items = Array.isArray(json?.timeline) ? (json.timeline as ApiTimelineItem[]) : [];
+      // narrow the fetched JSON to a shape that may include timeline so TypeScript can validate property access
+      const json = (await fetchJson("/api/timeline?gameId=0")) as { timeline?: ApiTimelineItem[] } | null;
+      if (!json || !Array.isArray(json.timeline)) {
+        // fallback to realtime hook if protected or empty
+        console.warn("[timeline] timeline fetch returned no JSON, falling back to realtime hook");
+        return;
+      }
+      const items = json.timeline as ApiTimelineItem[];
 
       // DEBUG: inspect raw response minimally
       console.log("[timeline] raw json:", json);

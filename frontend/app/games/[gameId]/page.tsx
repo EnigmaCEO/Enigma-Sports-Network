@@ -22,9 +22,16 @@ export default async function GamePage({ params }: Props) {
 		);
 	}
 
-	const events: GameEvent[] = await getTimeline(gameId);
-  console.log(`Rendering GamePage for gameId=${gameId} with ${events.length} events`);
-  console.log(events);
+	let events: GameEvent[] = [];
+	try {
+		const resp = await getTimeline(gameId);
+		events = Array.isArray(resp) ? (resp as GameEvent[]) : [];
+	} catch (err) {
+		console.warn(`[GamePage] getTimeline failed for ${gameId}`, err);
+		events = [];
+	}
+	console.log(`Rendering GamePage for gameId=${gameId} with ${events.length} events`);
+
 	return (
 		<main className="mx-auto max-w-3xl p-6 space-y-4">
 			<h1 className="text-xl font-semibold">Game: {gameId}</h1>
