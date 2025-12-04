@@ -1,0 +1,54 @@
+/* Navbar spacing and link styles
+   - removes bullets
+   - lays out nav items horizontally with a gap
+   - gives links more padding for clickable area
+   - removes default underline and provides a subtle bottom-border on hover/focus
+*/
+header nav ul,
+.navbar ul,
+nav.top-nav ul {
+  list-style: none;
+  display: flex;
+  gap: 1rem;       /* horizontal spacing between items; tweak as needed */
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+header nav li,
+.navbar li,
+nav.top-nav li {
+  margin: 0;
+}
+
+header nav a,
+.navbar a,
+nav.top-nav a {
+  display: inline-block;
+  padding: 0.5rem 0.75rem;   /* increases clickable area */
+  color: inherit;
+  text-decoration: none;     /* remove underline */
+  border-bottom: 2px solid transparent;
+  transition: color 120ms ease, border-bottom-color 120ms ease;
+}
+
+header nav a:hover,
+.navbar a:hover,
+nav.top-nav a:hover,
+header nav a:focus,
+.navbar a:focus,
+nav.top-nav a:focus {
+  color: var(--accent, #fff);
+  border-bottom-color: currentColor;
+  outline: none;
+}
+
+/* Small screens: allow wrapping and reduce gap */
+@media (max-width: 640px) {
+  header nav ul,
+  .navbar ul,
+  nav.top-nav ul {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+}

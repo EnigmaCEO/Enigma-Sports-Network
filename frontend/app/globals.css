@@ -1,10 +1,52 @@
-@import "tailwindcss";
+/* Tailwind layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* ...existing variables... */
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
 
+/* small, safe base-layer customizations (keeps Tailwind Preflight) */
+@layer base {
+  /* sensible box model and font smoothing */
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5;
+  }
+
+  /* reset body margin and use CSS variables for colors */
+  body {
+    margin: 5px;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  }
+
+  /* a minimal accessible link style */
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  /* accessible focus outline */
+  :focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.35); /* blue focus ring similar to Tailwind's ring */
+  }
+}
+
+/* theme helper you had */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -12,6 +54,7 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* dark mode via prefers-color-scheme (preserve your values) */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -19,8 +62,13 @@
   }
 }
 
+/* ...existing body rules (kept by intent) ... */
+/* If you prefer to keep the original body block instead of the one in @layer base,
+   remove the body rule above and uncomment the following block. */
+/*
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+*/

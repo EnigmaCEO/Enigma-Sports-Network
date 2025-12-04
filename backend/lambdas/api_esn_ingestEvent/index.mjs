@@ -8,6 +8,7 @@ const GAME_EVENTS_TABLE = process.env.GAME_EVENTS_TABLE || 'ESN_GameEvents';
 const GAME_SESSIONS_TABLE = process.env.GAME_SESSIONS_TABLE || 'ESN_GameSession';
 
 export const handler = async (event) => {
+  console.log('Received event:', JSON.stringify(event));
   try {
     // Parse the request body
     let body;
@@ -29,8 +30,8 @@ export const handler = async (event) => {
     }
 
     // Validate required fields
-    const { gameId, type, payload } = body;
-    if (!gameId || !type) {
+    const { gameId, type, payload, appId, sport } = body;
+    if (!gameId || !type || !appId || !sport) {
       return {
         statusCode: 400,
         headers: {
@@ -40,8 +41,8 @@ export const handler = async (event) => {
         },
         body: JSON.stringify({
           error: 'Missing required fields',
-          required: ['gameId', 'type'],
-          received: { gameId, type, payload }
+          required: ['gameId', 'type', 'appId', 'sport'],
+          received: { gameId, type, appId, sport, payload }
         }),
       };
     }
@@ -51,10 +52,16 @@ export const handler = async (event) => {
 
     // Create the game event item
     const gameEvent = {
-      eventId,
-      gameId,
+      eventId,            // local/canonical id used in code
+      EventID: eventId,   // DynamoDB partition/sort key expected by table
+      gameId,             // keep lowercase for compatibility in code
+      GameID: gameId,     // exact attribute name expected by the table
       type,
       payload: payload || {},
+      appId,
+      AppID: appId,
+      sport,
+      Sport: sport,
       timestamp,
       createdAt: timestamp
     };
@@ -66,7 +73,7 @@ export const handler = async (event) => {
     }));
 
     // Update GameSession based on event type
-    await updateGameSession(gameId, type, payload, timestamp);
+    await updateGameSession(gameId, type, payload, timestamp, appId, sport);
 
     return {
       statusCode: 200,
@@ -80,6 +87,8 @@ export const handler = async (event) => {
         eventId,
         gameId,
         type,
+        appId,
+        sport,
         timestamp
       }),
     };
@@ -102,14 +111,15 @@ export const handler = async (event) => {
   }
 };
 
-async function updateGameSession(gameId, eventType, payload, timestamp) {
+async function updateGameSession(gameId, eventType, payload, timestamp, appId, sport) {
   try {
     // First, get the current game session to check if it exists
     let gameSession;
     try {
       const getResult = await docClient.send(new GetCommand({
         TableName: GAME_SESSIONS_TABLE,
-        Key: { gameId }
+        // Use the same partition key name as the table: GameID
+        Key: { GameID: gameId }
       }));
       gameSession = getResult.Item;
     } catch (getError) {
@@ -121,6 +131,17 @@ async function updateGameSession(gameId, eventType, payload, timestamp) {
     let expressionAttributeValues = {
       ':timestamp': timestamp
     };
+    const expressionAttributeNames = {}; // fill only if we add dynamic attr names
+
+    // Upsert AppID/appId and Sport/sport on session (appId & sport present)
+    if (appId) {
+      updateExpression += ', AppID = :appId, appId = :appId';
+      expressionAttributeValues[':appId'] = appId;
+    }
+    if (sport) {
+      updateExpression += ', Sport = :sport, sport = :sport';
+      expressionAttributeValues[':sport'] = sport;
+    }
 
     // If game session doesn't exist, create it
     if (!gameSession) {
@@ -137,7 +158,11 @@ async function updateGameSession(gameId, eventType, payload, timestamp) {
       case 'safety':
         // Update score-related information
         if (payload.team && payload.points) {
-          updateExpression += `, ${payload.team}Score = if_not_exists(${payload.team}Score, :zero) + :points`;
+          // Use ExpressionAttributeNames for dynamic attribute (e.g. "homeScore" or "awayScore")
+          const scoreAttrName = `${payload.team}Score`;
+          const scorePlaceholder = `#${scoreAttrName}`;
+          expressionAttributeNames[scorePlaceholder] = scoreAttrName;
+          updateExpression += `, ${scorePlaceholder} = if_not_exists(${scorePlaceholder}, :zero) + :points`;
           expressionAttributeValues[':points'] = parseInt(payload.points) || 0;
           expressionAttributeValues[':zero'] = 0;
         }
@@ -158,7 +183,9 @@ async function updateGameSession(gameId, eventType, payload, timestamp) {
       case 'timeout':
         if (payload.team) {
           const timeoutField = `${payload.team}Timeouts`;
-          updateExpression += `, ${timeoutField} = if_not_exists(${timeoutField}, :zero) + :one`;
+          const timeoutPlaceholder = `#${timeoutField}`;
+          expressionAttributeNames[timeoutPlaceholder] = timeoutField;
+          updateExpression += `, ${timeoutPlaceholder} = if_not_exists(${timeoutPlaceholder}, :zero) + :one`;
           expressionAttributeValues[':one'] = 1;
           expressionAttributeValues[':zero'] = 0;
         }
@@ -174,13 +201,17 @@ async function updateGameSession(gameId, eventType, payload, timestamp) {
     }
 
     // Perform the update
-    await docClient.send(new UpdateCommand({
+    const updateParams = {
       TableName: GAME_SESSIONS_TABLE,
-      Key: { gameId },
+      Key: { GameID: gameId },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionAttributeValues,
       ReturnValues: 'ALL_NEW'
-    }));
+    };
+    if (Object.keys(expressionAttributeNames).length) {
+      updateParams.ExpressionAttributeNames = expressionAttributeNames;
+    }
+    await docClient.send(new UpdateCommand(updateParams));
 
     console.log(`Game session updated for gameId: ${gameId}, eventType: ${eventType}`);
   

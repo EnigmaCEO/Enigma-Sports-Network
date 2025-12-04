@@ -1,5 +1,6 @@
+'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 
 export default function MockGamePage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -60,6 +61,7 @@ export default function MockGamePage() {
       }
 
       setStatus('Events sent successfully! Redirecting...');
+      setIsLoading(false);
       
       // Redirect to game page
       setTimeout(() => {
