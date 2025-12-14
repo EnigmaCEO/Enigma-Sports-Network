@@ -13,6 +13,8 @@ export default function DevCommentaryPage() {
   const [podcastResult, setPodcastResult] = useState(null);
   // New: response from generateArticle lambda
   const [articleResult, setArticleResult] = useState(null);
+  // New: response from article image lambda
+  const [articleImageResult, setArticleImageResult] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [debug, setDebug] = useState('');
@@ -22,6 +24,8 @@ export default function DevCommentaryPage() {
   const podcastLambdaUrl = process.env.NEXT_PUBLIC_LAMBDA_PODCAST || '';
   // New: article lambda public URL
   const articleLambdaUrl = process.env.NEXT_PUBLIC_LAMBDA_ARTICLE || '';
+  // New: article image lambda URL
+  const articleImageLambdaUrl = process.env.NEXT_PUBLIC_LAMBDA_ARTICLE_IMAGE || '';
 
   async function callDirect(e) {
     e && e.preventDefault();
@@ -227,6 +231,46 @@ export default function DevCommentaryPage() {
     }
   }
 
+  // New: call generateArticleHighlight (article image) lambda via proxy
+  async function callGenerateArticleImage(e) {
+    e && e.preventDefault();
+    setError(null);
+    setArticleImageResult(null);
+    setLoading(true);
+
+    try {
+      if (!gameId) {
+        setError('enter gameId');
+        return;
+      }
+      if (!articleImageLambdaUrl) {
+        setError('NEXT_PUBLIC_LAMBDA_ARTICLE_IMAGE not set; cannot call article image lambda.');
+        return;
+      }
+
+      const res = await fetch('/api/proxyGenerateArticleImage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lambdaUrl: articleImageLambdaUrl,
+          payload: { gameId },
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      setArticleImageResult({ status: res.status, body: data });
+
+      if (!res.ok) {
+        setError(`GenerateArticleImage returned ${res.status}`);
+      }
+    } catch (err) {
+      console.error('GenerateArticleImage call failed:', err);
+      setError(String(err?.message || err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const canGeneratePodcast = hasValidCommentary(commentary);
 
   return (
@@ -271,6 +315,16 @@ export default function DevCommentaryPage() {
             style={{ padding: '8px 12px' }}
           >
             Generate Article
+          </button>
+
+          {/* New: Generate Article Image from article JSON in S3 */}
+          <button
+            type="button"
+            onClick={callGenerateArticleImage}
+            disabled={loading || !gameId}
+            style={{ padding: '8px 12px' }}
+          >
+            Generate Article Image
           </button>
         </div>
       </form>
@@ -321,6 +375,27 @@ export default function DevCommentaryPage() {
             {typeof articleResult.body === 'string'
               ? articleResult.body
               : JSON.stringify(articleResult.body, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {/* New: show article image lambda response */}
+      {articleImageResult && (
+        <div>
+          <h2>GenerateArticleImage Response (status {articleImageResult.status})</h2>
+          <pre
+            style={{
+              background: '#eaf7ff',
+              padding: 12,
+              borderRadius: 6,
+              maxHeight: 360,
+              overflow: 'auto',
+              color: 'black',
+            }}
+          >
+            {typeof articleImageResult.body === 'string'
+              ? articleImageResult.body
+              : JSON.stringify(articleImageResult.body, null, 2)}
           </pre>
         </div>
       )}
