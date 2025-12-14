@@ -14,6 +14,79 @@ export default function MockGamePage() {
 
   // persist counter across re-renders
   const eventCounterRef = React.useRef(1);
+
+  // --- very small name generator reused within this mock game ---
+  const rosterRef = React.useRef<Map<string, string> | null>(null);
+  function ensureRoster() {
+    if (!rosterRef.current) rosterRef.current = new Map();
+    return rosterRef.current;
+  }
+
+  // broadened, more diverse name pool
+  const FIRST_NAMES = [
+    "Alex",
+    "Jordan",
+    "Chris",
+    "Taylor",
+    "Morgan",
+    "Riley",
+    "Sam",
+    "Cameron",
+    "Devin",
+    "Jamie",
+    // added
+    "Malik",
+    "Darius",
+    "Jamal",
+    "Trevon",
+    "Jalen",
+    "Marcus",
+    "LeBron",
+    "Kendall",
+    "Xavier",
+    "Keenan",
+    "Miles",
+    "Tyrone",
+    "Eric",
+    "Latrell",
+    "DeShawn",
+  ];
+  const LAST_NAMES = [
+    "Coleman",
+    "Rivera",
+    "Hughes",
+    "Parker",
+    "Nguyen",
+    "Moore",
+    "Lopez",
+    "Bennett",
+    "Scott",
+    "Harris",
+    "Jackson",
+    "Johnson",
+    "Brown",
+    "Davis",
+    "Robinson",
+    "Thompson",
+    "Mitchell",
+    "Walker",
+    "Young",
+    "Lewis",
+    "Martin",
+    "Allen",
+    "Wright",
+  ];
+
+  function nameForJersey(jersey: string) {
+    const roster = ensureRoster();
+    if (roster.has(jersey)) return roster.get(jersey)!;
+    const first = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+    const last = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+    const full = `${first} ${last}`;
+    roster.set(jersey, full);
+    return full;
+  }
+
   function makeEvent(type: string, payload: unknown) {
     const id = eventCounterRef.current++;
     return {
@@ -55,22 +128,31 @@ export default function MockGamePage() {
 
   async function postEventAndLog<Payload = unknown>(ev: GameEvent<Payload>) {
     try {
-    // Ensure top-level appId/sport are present for any event sent
-    const fullEvent = { ...ev };
-    if (!fullEvent.appId) fullEvent.appId = APP_ID;
-    if (!fullEvent.sport) fullEvent.sport = SPORT;
-    await ingestEvent(fullEvent);
-    const hasGameClock =
-      typeof ev.payload === "object" &&
-      ev.payload !== null &&
-      "gameClock" in ev.payload &&
-      typeof (ev.payload as { gameClock: unknown }).gameClock === "string";
+      // Ensure top-level appId/sport are present for any event sent
+      const fullEvent = { ...ev };
+      if (!fullEvent.appId) fullEvent.appId = APP_ID;
+      if (!fullEvent.sport) fullEvent.sport = SPORT;
+      await ingestEvent(fullEvent);
+      const hasGameClock =
+        typeof ev.payload === "object" &&
+        ev.payload !== null &&
+        "gameClock" in ev.payload &&
+        typeof (ev.payload as { gameClock: unknown }).gameClock === "string";
 
-    const gc = hasGameClock ? (ev.payload as { gameClock: string }).gameClock : "";
-    // log each event type and its clock — include the full event so top-level fields (gameId/appId/sport) are visible
-    console.log(`${fullEvent.type} @ ${gc}`, { event: { eventId: fullEvent.eventId, gameId: fullEvent.gameId, appId: fullEvent.appId, sport: fullEvent.sport, type: fullEvent.type, timestamp: fullEvent.timestamp }, payload: fullEvent.payload });
+      const gc = hasGameClock ? (ev.payload as { gameClock: string }).gameClock : "";
+      // log each event type and its clock — include the full event so top-level fields (gameId/appId/sport) are visible
+      console.log(`${fullEvent.type} @ ${gc}`, {
+        event: {
+          eventId: fullEvent.eventId,
+          gameId: fullEvent.gameId,
+          appId: fullEvent.appId,
+          sport: fullEvent.sport,
+          type: fullEvent.type,
+          timestamp: fullEvent.timestamp,
+        },
+        payload: fullEvent.payload,
+      });
     } catch (err) {
-      
       console.error("Failed to send event", ev.type, err);
     }
   }
@@ -161,20 +243,33 @@ export default function MockGamePage() {
             const yards = randInt(-2, 12);
             totalYards += yards;
             yardLine = Math.max(0, yardLine - yards);
+
+            const runnerJersey = `#${randInt(20, 35)}`;
+            const runnerName = nameForJersey(runnerJersey);
             const blockSide = pick(["left", "right", "middle"]);
             const blockers = [randInt(50, 79), randInt(50, 79)].map((n) => `#${n}`);
             const keyBlocker = blockers[0];
-            const blockOutcome = pick(["edge_sealed", "neutral", "missed"]);
-            const runner = `#${randInt(20, 35)}`;
+            const keyBlockerName = nameForJersey(keyBlocker);
+            const blockOutcome = pick(["edge sealed", "good push", "stuffed at the line"]);
+
+            let runPhrase: string;
+            if (yards > 0) runPhrase = `${yards}-yard gain`;
+            else if (yards === 0) runPhrase = "no gain";
+            else runPhrase = `${Math.abs(yards)}-yard loss`;
+
+            const description = `${runnerName} (${runnerJersey}) runs ${blockSide} behind ${keyBlockerName} (${keyBlocker}) for a ${runPhrase}.`;
 
             const payload = {
               ...playBase,
-              runner,
+              runner: runnerJersey,
+              runnerName,
               yards,
               blockSide,
               blockers,
               keyBlocker,
+              keyBlockerName,
               blockOutcome,
+              description,
             };
 
             await postEventAndLog(makeEvent("play", payload));
@@ -187,24 +282,41 @@ export default function MockGamePage() {
 
             totalYards += yards;
             yardLine = Math.max(0, yardLine - yards);
-            const passer = `#${randInt(1, 12)}`;
-            const target = `#${randInt(13, 29)}`;
-            const route = pick(["slant", "go", "out", "in", "post", "corner"]);
+
+            const passerJersey = `#${randInt(1, 12)}`;
+            const targetJersey = `#${randInt(13, 29)}`;
+            const passerName = nameForJersey(passerJersey);
+            const targetName = nameForJersey(targetJersey);
+
+            const route = pick(["slant", "go route", "out route", "deep in", "post", "corner"]);
             const blockers = [randInt(50, 79), randInt(50, 79)].map((n) => `#${n}`);
             const keyProtector = blockers[0];
-            // pressureAllowedBy is null for clean pocket; if sack or incompletion with pressure, set an OL
+            const keyProtectorName = nameForJersey(keyProtector);
             const pressureAllowedBy = Math.random() < 0.15 ? `#${randInt(50, 79)}` : null;
+
+            let description: string;
+            if (result === "complete") {
+              description = `${passerName} (${passerJersey}) hits ${targetName} (${targetJersey}) on a ${route} for ${yards} yards.`;
+            } else if (result === "incomplete") {
+              description = `${passerName} (${passerJersey}) looks for ${targetName} (${targetJersey}) on a ${route}, but it's incomplete.`;
+            } else {
+              description = `${passerName} (${passerJersey}) is sacked for a ${Math.abs(yards)}-yard loss despite ${keyProtectorName} (${keyProtector}) in protection.`;
+            }
 
             const payload = {
               ...playBase,
-              passer,
-              target,
+              passer: passerJersey,
+              passerName,
+              target: targetJersey,
+              targetName,
               yards,
               route,
               result,
               blockers,
               keyProtector,
+              keyProtectorName,
               pressureAllowedBy,
+              description,
             };
 
             await postEventAndLog(makeEvent("play", payload));
@@ -222,8 +334,13 @@ export default function MockGamePage() {
         if (scoreRoll < 0.12) {
           // touchdown
           const scoreYards = randInt(1, 80);
-          score[offense] += 6;
+          score[offense] += 7;
           driveResult = "touchdown";
+
+          const scorerJersey = `#${randInt(10, 39)}`;
+          const scorerName = nameForJersey(scorerJersey);
+          const description = `${scorerName} (${scorerJersey}) breaks free for a ${scoreYards}-yard touchdown run for the ${offense}.`;
+
           const payload = {
             quarter,
             phase: "regulation",
@@ -234,6 +351,9 @@ export default function MockGamePage() {
             scoreType: "TD",
             yards: scoreYards,
             result: "good",
+            // --- new: explicit points field for recap logic ---
+            points: 7,
+            description,
           };
           await postEventAndLog(makeEvent("score", payload));
         } else if (scoreRoll < 0.22) {
@@ -241,6 +361,11 @@ export default function MockGamePage() {
           const fgYards = randInt(20, 55);
           score[offense] += 3;
           driveResult = "field_goal";
+
+          const kickerJersey = `#${randInt(2, 19)}`;
+          const kickerName = nameForJersey(kickerJersey);
+          const description = `${kickerName} (${kickerJersey}) nails a ${fgYards}-yard field goal for the ${offense}.`;
+
           const payload = {
             quarter,
             phase: "regulation",
@@ -251,11 +376,39 @@ export default function MockGamePage() {
             scoreType: "FG",
             yards: fgYards,
             result: "good",
+            // --- new: explicit points field for recap logic ---
+            points: 3,
+            description,
           };
           await postEventAndLog(makeEvent("score", payload));
         } else {
           // no score: punt/turnover/predetermined
           driveResult = pick(["punt", "turnover"]);
+
+          // --- new: if turnover, emit an explicit turnover event ---
+          if (driveResult === "turnover") {
+            const gameClock = formatClock(secondsLeft);
+            const cause = pick(["interception", "fumble", "downs"]);
+            const description =
+              cause === "interception"
+                ? `${offense} turns it over on an interception.`
+                : cause === "fumble"
+                ? `${offense} coughs it up on a fumble.`
+                : `${offense} fails to convert and turns it over on downs.`;
+
+            await postEventAndLog(
+              makeEvent("turnover", {
+                quarter,
+                phase: "regulation",
+                periodType: "quarter",
+                periodIndex: quarter,
+                gameClock,
+                team: offense,
+                type: cause,
+                description,
+              })
+            );
+          }
         }
 
         // drive_end

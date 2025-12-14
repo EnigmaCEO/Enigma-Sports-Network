@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+"use client";
+
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
-import React from "react";
+import React, { ReactNode, createContext, useContext, useState } from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,18 +15,49 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Enigma Sports Network",
-  description: "Scores, events and community for Enigma Sports Network",
+// NOTE: metadata moved to ./metadata.ts because this layout is now a client component
+// and client components cannot export `metadata`.
+
+// simple context to let pages provide scoreboard header content
+type ScoreboardContextValue = {
+  scoreboard: ReactNode;
+  setScoreboard: (node: ReactNode) => void;
 };
+
+const ScoreboardContext = createContext<ScoreboardContextValue | null>(null);
+
+export function useScoreboardSlot() {
+  const ctx = useContext(ScoreboardContext);
+  if (!ctx) {
+    throw new Error("useScoreboardSlot must be used within RootLayout");
+  }
+  return ctx;
+}
+
+function ScoreboardShell({ children }: { children: ReactNode }) {
+  const [scoreboard, setScoreboard] = useState<ReactNode>(null);
+
+  return (
+    <ScoreboardContext.Provider value={{ scoreboard, setScoreboard }}>
+      {/* Top scoreboard bar, before nav */}
+      {scoreboard ? (
+        <div className="w-full border-b bg-white/70 backdrop-blur-sm">
+          <div className="mx-auto max-w-6xl px-4 py-2">{scoreboard}</div>
+        </div>
+      ) : null}
+      {children}
+    </ScoreboardContext.Provider>
+  );
+}
 
 function SiteHeader() {
   return (
     <header className="border-b bg-white/60 backdrop-blur-sm">
       <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-        <Link href="/" className="text-lg font-semibold">
-          Enigma Sports
-        </Link>
+      <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
+                Enigma Sports Network
+      </h1>
+              
         <nav aria-label="Main navigation">
           <ul
             className="flex text-sm items-center"
@@ -35,13 +67,10 @@ function SiteHeader() {
               <Link href="/">Home</Link>
             </li>
             <li>
-              <Link href="/events">Events</Link>
+              <Link href="/">Investors</Link>
             </li>
             <li>
-              <Link href="/teams">Teams</Link>
-            </li>
-            <li>
-              <Link href="/about">About</Link>
+              <Link href="/">Pitch Deck</Link>
             </li>
           </ul>
         </nav>
@@ -70,21 +99,23 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
-        {/* Skip link for keyboard users */}
-        <a
-          href="#content"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:bg-neutral-900 focus:text-white px-3 py-1 rounded"
-        >
-          Skip to content
-        </a>
+        <ScoreboardShell>
+          {/* Skip link for keyboard users */}
+          <a
+            href="#content"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:bg-neutral-900 focus:text-white px-3 py-1 rounded"
+          >
+            Skip to content
+          </a>
 
-        <SiteHeader />
+          <SiteHeader />
 
-        <main id="content" className="mx-auto w-full max-w-6xl px-4 py-8 flex-1">
-          {children}
-        </main>
+          <main id="content" className="mx-auto w-full max-w-6xl px-4 py-8 flex-1">
+            {children}
+          </main>
 
-        <SiteFooter />
+          <SiteFooter />
+        </ScoreboardShell>
       </body>
     </html>
   );

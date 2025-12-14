@@ -1,10 +1,11 @@
 "use client";
 
 import useRealtime from "./hooks/useRealtime";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import fetchJson from "../lib/fetchJson";
+import { useScoreboardSlot } from "./layout"; // relative to app root
 
 interface TimelineItem {
   id?: string;
@@ -23,9 +24,7 @@ interface TimelineItem {
     team?: string;
     player?: string;
     description?: string;
-    // possible extra fields for game events
-    // NOTE: removed appId from payload — always read from top-level
-    appName?: string;      // keep optional in case backend sends it
+    appName?: string;      
     homeTeam?: string;
     awayTeam?: string;
     homeScore?: number;
@@ -52,44 +51,36 @@ interface ApiTimelineItem {
     homeScore?: number;
     awayScore?: number;
     quarter?: number;
-    // NOTE: removed appId from payload — always read from top-level
     appName?: string;
   };
 }
 
 export default function Home() {
   const { activities, status } = useRealtime();
-  // new: prefer timeline from backend (gameId=0) for "Recent Activity"
   const [recentActivities, setRecentActivities] = useState<TimelineItem[]>([]);
+  const [selectedAppId, setSelectedAppId] = useState<string | "all">("all");
+  const { setScoreboard } = useScoreboardSlot();
 
-  // use a mounted ref so multiple effects can safely call loadTimeline
   const mountedRef = useRef(true);
 
-  // single reusable loader
   async function loadTimeline() {
     try {
-      // narrow the fetched JSON to a shape that may include timeline so TypeScript can validate property access
       const json = (await fetchJson("/api/timeline?gameId=0")) as { timeline?: ApiTimelineItem[] } | null;
       if (!json || !Array.isArray(json.timeline)) {
-        // fallback to realtime hook if protected or empty
         console.warn("[timeline] timeline fetch returned no JSON, falling back to realtime hook");
         return;
       }
       const items = json.timeline as ApiTimelineItem[];
 
-      // DEBUG: inspect raw response minimally
       console.log("[timeline] raw json:", json);
       console.log("[timeline] items count:", items.length);
 
-      // helper: safe timestamp value for sorting
       const ts = (it?: ApiTimelineItem) =>
         it && (it.timestamp || it.time) ? new Date(it.timestamp || it.time as string).getTime() : 0;
 
-      // helper: try to extract numeric scores from an event payload or event object
       const extractScoresFrom = (obj?: Record<string, unknown>) => {
         if (!obj) return { home: undefined as number | undefined, away: undefined as number | undefined };
 
-        // direct numeric fields
         const numeric = (v: unknown): number | undefined => {
           if (typeof v === "number") return v;
           if (typeof v === "string") {
@@ -101,9 +92,7 @@ export default function Home() {
           return undefined;
         };
 
-        // try obvious structured snapshots first (prefer these)
         const trySnapshot = () => {
-          // include finalScore / final_score variants so game_end payloads are recognized
           const candidates = ["scoreSnapshot", "score_snapshot", "score_snapshot_v1", "score_snapshot_v2", "finalScore", "final_score", "score"];
           for (const key of candidates) {
             const s = (obj as Record<string, unknown>)[key];
@@ -117,11 +106,10 @@ export default function Home() {
           return { home: undefined as number | undefined, away: undefined as number | undefined };
         };
 
-        // check common patterns after snapshots
         const patterns: Array<() => { home?: number; away?: number }> = [
           () => ({ home: numeric((obj as Record<string, unknown>)["homeScore"]), away: numeric((obj as Record<string, unknown>)["awayScore"]) }),
           () => ({ home: numeric((obj as Record<string, unknown>)["home_score"]), away: numeric((obj as Record<string, unknown>)["away_score"]) }),
-          () => ({ home: numeric((obj as Record<string, unknown>)["home"]), away: numeric((obj as Record<string, unknown>)["away"]) }), // sometimes numbers are stored as 'home'/'away'
+          () => ({ home: numeric((obj as Record<string, unknown>)["home"]), away: numeric((obj as Record<string, unknown>)["away"]) }),
           () => ({ home: numeric((obj as Record<string, unknown>)["homeTeamScore"]), away: numeric((obj as Record<string, unknown>)["awayTeamScore"]) }),
           () => ({ home: numeric((obj as Record<string, unknown>)["home_team_score"]), away: numeric((obj as Record<string, unknown>)["away_team_score"]) }),
           () => {
@@ -135,11 +123,9 @@ export default function Home() {
           () => ({ home: numeric((obj as Record<string, unknown>)["scoreHome"]), away: numeric((obj as Record<string, unknown>)["scoreAway"]) }),
         ];
 
-        // try snapshots first
         const snap = trySnapshot();
         if (snap.home != null || snap.away != null) return snap;
 
-        // then patterns
         for (const p of patterns) {
           const out = p();
           if (out.home != null || out.away != null) return { home: out.home, away: out.away };
@@ -147,29 +133,23 @@ export default function Home() {
         return { home: undefined, away: undefined };
       };
 
-      // search events for the latest numeric score values (newest first)
-      // now accepts optional team names so snapshots keyed by team name can be mapped
       const findLatestScores = (
         events: ApiTimelineItem[],
         homeTeamName?: string,
         awayTeamName?: string
       ): { home?: number; away?: number; event?: ApiTimelineItem } => {
         const evs = events.slice().sort((a, b) => ts(b) - ts(a));
-        // prefer events that include a payload scoreSnapshot (or variants)
         for (const e of evs) {
           const payloadObj = (e.payload as Record<string, unknown>) ?? undefined;
           if (payloadObj) {
-            // if payload contains a dedicated snapshot-like structure, use it and return that event
             const snapKeys = ["scoreSnapshot", "score_snapshot", "score_snapshot_v1", "score_snapshot_v2", "finalScore", "final_score", "score"];
             for (const k of snapKeys) {
               const s = payloadObj[k];
               if (s && typeof s === "object") {
                 const sObj = s as Record<string, unknown>;
-                // first attempt standard extraction
                 const { home, away } = extractScoresFrom(sObj);
                 if (home != null || away != null) return { home, away, event: e };
 
-                // if no standard home/away keys, but team names are provided, map by team name keys
                 if (homeTeamName || awayTeamName) {
                   const numeric = (v: unknown): number | undefined => {
                     if (typeof v === "number") return v;
@@ -187,7 +167,6 @@ export default function Home() {
                     return { home: byHomeName, away: byAwayName, event: e };
                   }
 
-                  // fallback: if snapshot contains exactly two numeric values, try to infer ordering
                   const numericEntries = Object.entries(sObj).filter(([, v]) => typeof v === "number" || (typeof v === "string" && String(v).trim() !== "" && !Number.isNaN(Number(String(v).trim()))));
                   if (numericEntries.length === 2) {
                     const values = numericEntries.map(([, v]) => Number(String(v)));
@@ -196,19 +175,16 @@ export default function Home() {
                 }
               }
             }
-            // otherwise try to extract from entire payload
             const fromPayload = extractScoresFrom(payloadObj);
             if (fromPayload.home != null || fromPayload.away != null) return { home: fromPayload.home, away: fromPayload.away, event: e };
           }
 
-          // fallback: try top-level event fields
           const fromTop = extractScoresFrom(e as unknown as Record<string, unknown>);
           if (fromTop.home != null || fromTop.away != null) return { home: fromTop.home, away: fromTop.away, event: e };
         }
         return { home: undefined as number | undefined, away: undefined as number | undefined, event: undefined };
       };
 
-      // group items by gameId
       const byGame = new Map<string, ApiTimelineItem[]>();
       const nonGame: ApiTimelineItem[] = [];
 
@@ -224,7 +200,6 @@ export default function Home() {
 
       const summaries: TimelineItem[] = [];
       console.log("[timeline] games found:", byGame.size);
-      // build one summary per gameId
       for (const [gameId, evs] of byGame.entries()) {
         const gameStart = evs.find((e) => e.type === "game_start") ?? null;
         if (!gameStart) {
@@ -232,7 +207,6 @@ export default function Home() {
           continue;
         }
 
-        // DEBUG: show keys and payload to understand where appId might be
         try {
           console.debug(`[timeline] gameId=${gameId} gameStart keys:`, Object.keys(gameStart));
           if (gameStart.payload) console.debug(`[timeline] gameId=${gameId} gameStart.payload keys:`, Object.keys(gameStart.payload));
@@ -240,7 +214,6 @@ export default function Home() {
           console.debug(`[timeline] gameId=${gameId} gameStart (raw):`, gameStart);
         }
 
-        // Pull appId from the top-level of the event (appId, app_id, or app)
         const top = gameStart as unknown as Record<string, unknown>;
         const appIdTop =
           (typeof gameStart?.appId === "string" || typeof gameStart?.appId === "number"
@@ -256,11 +229,10 @@ export default function Home() {
         console.debug(`[timeline] gameId=${gameId} resolved appId:`, appId);
         if (!appId) {
           console.warn(`[timeline] gameId=${gameId} - skipping: no top-level appId found on game_start`);
-          continue; // skip games without appId per requirement
+          continue;
         }
 
         const latest = evs.slice().sort((a, b) => ts(b) - ts(a))[0];
-        // DEBUG: show latest event summary to confirm where scores/live info live
         console.log(`[timeline] gameId=${gameId} latest event type:`, latest?.type, "timestamp:", latest?.timestamp);
         if (latest?.payload) console.debug(`[timeline] gameId=${gameId} latest.payload keys:`, Object.keys(latest.payload));
 
@@ -268,20 +240,16 @@ export default function Home() {
         const home = gameStart?.payload?.homeTeam ?? gameStart?.payload?.team ?? "Home";
         const away = gameStart?.payload?.awayTeam ?? "Away";
 
-        // get the most recent numeric scores across all events for this game,
-        // preferring events that include a scoreSnapshot and returning the event that provided them
         const scoreResult = findLatestScores(evs, home as string | undefined, away as string | undefined);
         const latestHomeScore = scoreResult.home ?? undefined;
         const latestAwayScore = scoreResult.away ?? undefined;
         const snapshotEvent = scoreResult.event ?? latest;
 
-        // Prefer quarter/time information from the snapshot event if available
         const quarter = snapshotEvent?.payload?.quarter ?? latest?.payload?.quarter ?? undefined;
         const homeScoreLabel = latestHomeScore != null ? ` (${latestHomeScore})` : "";
         const awayScoreLabel = latestAwayScore != null ? ` (${latestAwayScore})` : "";
         let timeAgo = snapshotEvent?.time ?? snapshotEvent?.timestamp ?? latest?.time ?? latest?.timestamp ?? "now";
         if (snapshotEvent?.type === "game_end" || latest?.type === "game_end") {
-          // Prefer showing actual final scores when we have them.
           const scorePart =
             latestHomeScore != null && latestAwayScore != null
               ? `${latestHomeScore}-${latestAwayScore}`
@@ -322,7 +290,6 @@ export default function Home() {
             homeScore: latestHomeScore,
             awayScore: latestAwayScore,
             quarter,
-            // intentionally no appId in payload
           },
         });
       }
@@ -332,7 +299,6 @@ export default function Home() {
         eventId: it.eventId,
         type: it.type,
         timestamp: it.timestamp,
-        // only take top-level appId; do not fall back to payload.appId
         appId: it.appId ?? undefined,
         sport: it.sport ?? undefined,
         title: it.text || String(it.type),
@@ -344,18 +310,14 @@ export default function Home() {
       }));
 
       const combined = [...summaries.sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || "")), ...mappedNonGame];
-      // DEBUG: final summaries for UI
       console.debug("[timeline] summaries count:", summaries.length, "combined length:", combined.length);
       if (mountedRef.current) setRecentActivities(combined);
     } catch {
-      // ignore fetch errors; UI will fall back to hook activities
     }
   }
 
-  // initial load once on mount
   useEffect(() => {
     mountedRef.current = true;
-    // schedule loading on the next microtask to avoid calling setState synchronously in the effect
     Promise.resolve().then(() => {
       if (mountedRef.current) loadTimeline();
     });
@@ -364,120 +326,197 @@ export default function Home() {
     };
   }, []);
 
-  // load again when connection becomes 'connected'
-  /*useEffect(() => {
-    if (status === "connected") {
-      loadTimeline();
-    }
-  }, [status]);*/
-
   const displayActivities = recentActivities.length > 0 ? recentActivities : activities;
+
+  // helper: human-friendly label for appId
+  const formatAppIdLabel = (id: string) => {
+    if (id === "efl-online") return "EFL Online";
+    return id;
+  };
+
+  // unique appIds for dropdown
+  const appIdOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const act of displayActivities as TimelineItem[]) {
+      const appId = (act as TimelineItem).appId;
+      if (appId) set.add(appId);
+    }
+    return Array.from(set).sort();
+  }, [displayActivities]);
+
+  // apply app filter
+  const filteredActivities = useMemo(() => {
+    if (selectedAppId === "all") return displayActivities;
+    return (displayActivities as TimelineItem[]).filter(
+      (act) => act.appId === selectedAppId
+    );
+  }, [displayActivities, selectedAppId]);
+
+  // last 5 game summaries (with scores) for scoreboard bar
+  const scoreboardItems = useMemo(() => {
+    const games = (filteredActivities as TimelineItem[]).filter((a) => a.gameId);
+    const sorted = games
+      .slice()
+      .sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+    return sorted.slice(0, 5);
+  }, [filteredActivities]);
+
+  // push scoreboard UI into layout slot
+  useEffect(() => {
+    setScoreboard(
+      <section className="flex items-center justify-between gap-4 overflow-x-auto">
+        {/* App filter dropdown */}
+        <div className="flex items-center gap-2 flex-shrink-0" style={{ width: '25%' }}>
+          <label className="text-xs text-zinc-600 dark:text-zinc-400" style={{width: '50%'}} ></label>
+          <select
+            className="rounded-full border px-3 py-1 text-xs bg-white dark:bg-black dark:border-zinc-700"
+            value={selectedAppId}
+            onChange={(e) =>
+              setSelectedAppId(e.target.value === "all" ? "all" : e.target.value)
+            }
+          >
+            <option value="all">All</option>
+            {appIdOptions.map((id) => (
+              <option key={id} value={id}>
+                {formatAppIdLabel(id)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Last 5 games mini-scoreboard */}
+        <div className="flex items-stretch gap-2 text-xs flex-1 overflow-x-auto">
+          {scoreboardItems.map((item) => {
+            const home = item.payload?.homeTeam ?? "Home";
+            const away = item.payload?.awayTeam ?? "Away";
+            const homeScoreNum =
+              item.payload?.homeScore != null ? Number(item.payload.homeScore) : undefined;
+            const awayScoreNum =
+              item.payload?.awayScore != null ? Number(item.payload.awayScore) : undefined;
+            const homeScore =
+              homeScoreNum != null && !Number.isNaN(homeScoreNum)
+                ? String(homeScoreNum)
+                : "";
+            const awayScore =
+              awayScoreNum != null && !Number.isNaN(awayScoreNum)
+                ? String(awayScoreNum)
+                : "";
+            const isFinal =
+              typeof item.timeAgo === "string" &&
+              item.timeAgo.toLowerCase().includes("final");
+
+            const homeWinning =
+              homeScoreNum != null &&
+              awayScoreNum != null &&
+              homeScoreNum > awayScoreNum;
+            const awayWinning =
+              homeScoreNum != null &&
+              awayScoreNum != null &&
+              awayScoreNum > homeScoreNum;
+
+            return (
+              <div
+                key={item.id}
+                className="flex flex-col justify-between border-l first:border-l-0 pl-2 first:pl-0 min-w-[140px]"
+                style={{ width: '150px', paddingLeft: '15px', paddingRight: '15px' }}
+              >
+                <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
+                  {isFinal ? "Final" : item.timeAgo || "Live"}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col">
+                    <span className="text-[11px] truncate">{home}</span>
+                    <span className="text-[11px] truncate">{away}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span
+                      style={{fontSize: '11px', fontWeight: `${
+                        homeWinning ? '900' : "normal"
+                      }`}}
+                    >
+                      {homeScore !== "" ? homeScore : "\u00A0"}
+                    </span>
+                    <span
+                      style={{fontSize: '11px', fontWeight: `${
+                        awayWinning ? '900' : "normal"
+                      }`}}
+                    >
+                      {awayScore !== "" ? awayScore : "\u00A0"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {scoreboardItems.length === 0 && (
+            <div className="text-[11px] text-zinc-500">
+              No games yet for this filter.
+            </div>
+          )}
+        </div>
+      </section>
+    );
+
+    // optional cleanup: clear scoreboard when leaving page
+    return () => setScoreboard(null);
+  }, [setScoreboard, selectedAppId, appIdOptions, scoreboardItems]);
 
   return (
     <div className="flex min-h-screen items-start justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="w-full max-w-5xl space-y-8 py-12 px-6">
-        {/* Header */}
         <header className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            
             <div>
-              <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
-                Enigma Sports Network
-              </h1>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
                 Activity Dashboard
               </p>
             </div>
           </div>
-
         </header>
 
-        {/* Stats */}
-        {/*<section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-[#0b0b0b]">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">Active Matches</div>
-                <div className="mt-1 text-2xl font-semibold">
-                  {stats.activeMatches}
-                </div>
-              </div>
-              <div className="flex items-center">
-                <LoadingSpinner size={status === "connected" ? "sm" : "md"} />
-              </div>
-            </div>
-            <div className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
-              {status === "connected" ? "+ realtime" : status === "connecting" ? "connecting…" : "offline"}
-            </div>
-          </div>
-
-          <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-[#0b0b0b]">
-            <div class="flex items-center justify-between">
-              <div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">Online Players</div>
-                <div className="mt-1 text-2xl font-semibold">
-                  {stats.onlinePlayers.toLocaleString()}
-                </div>
-              </div>
-              <div className="flex items-center">
-                <LoadingSpinner size={status === "connected" ? "sm" : "md"} />
-              </div>
-            </div>
-            <div className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">Peak: 2,002</div>
-          </div>
-
-          <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-[#0b0b0b]">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">Active Channels</div>
-                <div className="mt-1 text-2xl font-semibold">
-                  {stats.activeChannels}
-                </div>
-              </div>
-              <div className="flex items-center">
-                <LoadingSpinner size={status === "connected" ? "sm" : "md"} />
-              </div>
-            </div>
-            <div className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">Realtime voice & chat</div>
-          </div>
-
-          <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-[#0b0b0b]">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">Revenue (30d)</div>
-                <div className="mt-1 text-2xl font-semibold">
-                  ${stats.revenue.toLocaleString()}
-                </div>
-              </div>
-              <div className="flex items-center">
-                <LoadingSpinner size={status === "connected" ? "sm" : "md"} />
-              </div>
-            </div>
-            <div className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">+8% vs previous period</div>
-          </div>
-        </section>*/}
-
-        {/* Recent Activity */}
+        {/* Recent Games (uses same filter) */}
         <section className="rounded-lg bg-white p-6 shadow-sm dark:bg-[#0b0b0b]">
-          <h2 className="text-lg font-medium text-black dark:text-zinc-50">Recent Games</h2>
+          <h2 className="text-lg font-medium text-black dark:text-zinc-50">
+            Recent Coverage
+          </h2>
           <ul className="mt-4 space-y-3">
-            {displayActivities.length > 0 ? (
-              displayActivities.map((act) => {
-                const gameId = "gameId" in act ? (act as TimelineItem).gameId : undefined;
-                const appId = "appId" in act ? (act as TimelineItem).appId : undefined;
-                const iconSrc = appId === "efl-online" ? "/efl-online.png" : undefined;
+            {filteredActivities.length > 0 ? (
+              filteredActivities.map((act) => {
+                const gameId =
+                  "gameId" in act ? (act as TimelineItem).gameId : undefined;
+                const appId =
+                  "appId" in act ? (act as TimelineItem).appId : undefined;
+                const iconSrc =
+                  appId === "efl-online" ? "/efl-online.png" : undefined;
+
+                const recapUrl = gameId
+                  ? `https://d2nuzfnuy59hla.cloudfront.net/${encodeURIComponent(
+                      String(gameId)
+                    )}.mp3`
+                  : null;
+
                 return (
-                  <li key={act.id} className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      {/* show efl-online icon on the left when available */}
+                  <li
+                    key={act.id}
+                    className="flex items-start justify-between gap-4"
+                  >
+                    <div className="flex flex-1 items-start gap-3">
                       {iconSrc ? (
-                        <Image src={iconSrc} alt="efl-online" width={64} height={64} className="rounded-sm" />
+                        <Image
+                          src={iconSrc}
+                          alt="efl-online"
+                          width={64}
+                          height={64}
+                          className="rounded-sm"
+                        />
                       ) : null}
                       <div style={{ alignSelf: "center" }}>
                         <div className="text-sm font-medium">
                           {gameId ? (
                             <Link
-                              href={`/games/${encodeURIComponent(String(gameId))}`}
+                              href={`/games/${encodeURIComponent(
+                                String(gameId)
+                              )}`}
                               className="hover:underline"
                             >
                               {act.title}
@@ -486,14 +525,41 @@ export default function Home() {
                             act.title
                           )}
                         </div>
-                        <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                          {/* show subtitle and game id */}
-                          
+                        <div
+                          className="text-xs text-zinc-500 dark:text-zinc-400"
+                          style={{ fontSize: "x-small" }}
+                        >
                           {gameId ? `Game ID: ${gameId}` : null}
                         </div>
                       </div>
                     </div>
-                    <div className="text-xs text-zinc-500">{act.timeAgo ?? "now"}</div>
+
+                    <div className="flex flex-1 flex-col items-center justify-center gap-1">
+                      {recapUrl ? (
+                        <>
+                          <span className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                            Recap Podcast
+                          </span>
+                          <audio
+                            controls
+                            preload="none"
+                            className="w-40 h-6 text-[10px] opacity-70 scale-90 hover:opacity-100 hover:scale-100 transition-transform transition-opacity"
+                            style={{
+                              minWidth: 0,
+                              width: "160px",
+                              height: "40px",
+                            }}
+                          >
+                            <source src={recapUrl} type="audio/mpeg" />
+                            Your browser does not support the audio element.
+                          </audio>
+                        </>
+                      ) : null}
+                    </div>
+
+                    <div className="w-24 text-right text-xs text-zinc-500">
+                      {act.timeAgo ?? "now"}
+                    </div>
                   </li>
                 );
               })
@@ -501,7 +567,9 @@ export default function Home() {
               <>
                 <li className="flex items-start justify-between">
                   <div>
-                    <div className="text-sm font-medium">Loading game data...</div>
+                    <div className="text-sm font-medium">
+                      Loading game data...
+                    </div>
                     <div className="text-xs text-zinc-500 dark:text-zinc-400"></div>
                   </div>
                   <div className="text-xs text-zinc-500"></div>
@@ -510,8 +578,6 @@ export default function Home() {
             )}
           </ul>
         </section>
-
-        
       </main>
     </div>
   );

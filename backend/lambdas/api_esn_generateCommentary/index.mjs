@@ -1,60 +1,53 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
 const dynamoClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-east-1' });
+// Ensure undefined values are stripped when marshalling to DynamoDB
+const docClient = DynamoDBDocumentClient.from(dynamoClient, {
+  marshallOptions: { removeUndefinedValues: true }
+});
 
 const GAME_EVENTS_TABLE = process.env.GAME_EVENTS_TABLE || 'ESN_GameEvents';
-const GAME_SESSIONS_TABLE = process.env.GAME_SESSIONS_TABLE || 'ESN_GameSession';
 
+// Handler: single-event real-time commentary
 export const handler = async (event) => {
   try {
-    // Parse the request body
+    // Parse the request body safely
     let body;
     try {
       body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
     } catch (parseError) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS'
-        },
-        body: JSON.stringify({
-          error: 'Invalid JSON in request body',
-          details: parseError.message
-        }),
+        headers: corsHeaders(),
+        body: JSON.stringify({ error: 'Invalid JSON in request body', details: String(parseError?.message || parseError) })
       };
     }
 
-    const { gameId, event: gameEvent } = body;
+    const gameId = body?.gameId;
+    const gameEvent = body?.event || body?.play || null;
 
     if (!gameId) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS'
-        },
-        body: JSON.stringify({
-          error: 'Missing required field: gameId'
-        }),
+        headers: corsHeaders(),
+        body: JSON.stringify({ error: 'Missing required field: gameId' })
+      };
+    }
+    if (!gameEvent) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders(),
+        body: JSON.stringify({ error: 'Missing required field: event (play)' })
       };
     }
 
-    // Get recent game context for better commentary
-    const gameContext = await getGameContext(gameId);
-    
-    // Generate commentary using Bedrock
-    const commentary = await generateCommentaryText(gameEvent, gameContext);
+    // Generate commentary for this single play (no full-game recap logic)
+    const commentary = await generateCommentaryText(gameEvent);
 
-    // Create commentary event
+    // Create AI_Commentary event and write it to DynamoDB
     const timestamp = new Date().toISOString();
-    const eventId = `${gameId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const eventId = `${gameId}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
     const commentaryEvent = {
       eventId,
@@ -69,193 +62,121 @@ export const handler = async (event) => {
       createdAt: timestamp
     };
 
-    // Write commentary event to DynamoDB
-    await docClient.send(new PutCommand({
-      TableName: GAME_EVENTS_TABLE,
-      Item: commentaryEvent
-    }));
+    // sanitize item to remove undefined and put
+    const sanitizedItem = JSON.parse(JSON.stringify(commentaryEvent));
+    await docClient.send(new PutCommand({ TableName: GAME_EVENTS_TABLE, Item: sanitizedItem }));
 
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({
-        message: 'Commentary generated successfully',
-        eventId,
-        commentary,
-        gameId
-      }),
+      headers: corsHeaders(),
+      body: JSON.stringify({ message: 'Commentary generated successfully', eventId, commentary, gameId })
     };
 
-  } catch (error) {
-    console.error('Error generating commentary:', error);
-    
+  } catch (err) {
+    console.error('Error in generateCommentary handler:', err);
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({
-        error: 'Failed to generate commentary',
-        details: error.message
-      }),
+      headers: corsHeaders(),
+      body: JSON.stringify({ error: 'Failed to generate commentary', details: String(err?.message || err) })
     };
   }
 };
 
-async function getGameContext(gameId) {
-  try {
-    // Get recent events for context (last 10 events)
-    const queryParams = {
-      TableName: GAME_EVENTS_TABLE,
-      KeyConditionExpression: 'gameId = :gameId',
-      ExpressionAttributeValues: {
-        ':gameId': gameId
-      },
-      ScanIndexForward: false, // Get most recent first
-      Limit: 10
-    };
-
-    const result = await docClient.send(new QueryCommand(queryParams));
-    const recentEvents = result.Items || [];
-
-    // Try to get game session info
-    let gameSession = null;
-    try {
-      const sessionResult = await docClient.send(new GetCommand({
-        TableName: GAME_SESSIONS_TABLE,
-        Key: { gameId }
-      }));
-      gameSession = sessionResult.Item;
-    } catch (err) {
-      console.log('No game session found, continuing without it');
-    }
-
-    return {
-      recentEvents: recentEvents.reverse(), // Put back in chronological order
-      gameSession
-    };
-  } catch (error) {
-    console.error('Error getting game context:', error);
-    return { recentEvents: [], gameSession: null };
-  }
+// Simple CORS headers used for both preflight and responses
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, x-goog-api-key',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Content-Type': 'application/json'
+  };
 }
 
-async function generateCommentaryText(gameEvent, gameContext) {
+// Build prompt from the single event and call Gemini HTTP if configured, otherwise fallback.
+async function generateCommentaryText(playEvent) {
   try {
-    // Build context for the LLM
-    const eventType = gameEvent?.type || 'unknown';
-    const eventPayload = gameEvent?.payload || {};
-    
-    // Create a summary of recent events for context
-    const recentEventsText = gameContext.recentEvents
-      .slice(-5) // Last 5 events
-      .map(e => `${e.type}: ${e.payload?.text || generateEventDescription(e)}`)
-      .join('\n');
+    const eventType = (playEvent?.type || 'play').toString();
+    const payload = playEvent?.payload || playEvent || {};
 
-    // Build the prompt
-    const prompt = `You are an enthusiastic sports commentator providing live commentary for a football game.
+    // Short human-readable summary of the play
+    const descriptionParts = [];
+    if (payload.playType) descriptionParts.push(payload.playType);
+    if (payload.playerName) descriptionParts.push(payload.playerName);
+    if (payload.runnerName) descriptionParts.push(payload.runnerName);
+    if (payload.passerName) descriptionParts.push(payload.passerName);
+    if (payload.targetName) descriptionParts.push(`to ${payload.targetName}`);
+    if (typeof payload.yards !== 'undefined') descriptionParts.push(`${payload.yards} yards`);
+    if (payload.description) descriptionParts.push(payload.description);
+    if (payload.text) descriptionParts.push(payload.text);
+    const shortDesc = descriptionParts.length ? descriptionParts.join(' - ') : (payload.summary || eventType);
 
-Recent game events:
-${recentEventsText}
+    const prompt = `You are an enthusiastic sports commentator. Generate 1 short (1-2 sentence) live play-by-play commentary for this play. Do not invent new players or teams; rely only on the information given.
 
-Current event: ${eventType}
-Event details: ${JSON.stringify(eventPayload, null, 2)}
+Play type: ${eventType}
+Details: ${JSON.stringify(payload, null, 2)}
 
-Generate exciting, professional sports commentary (1-2 sentences) for this event. Make it engaging and appropriate for the game situation. Focus on the action and impact of the play.
+Short description: ${shortDesc}
 
 Commentary:`;
 
-    // Use Claude via Bedrock
-    const modelId = 'anthropic.claude-3-sonnet-20240229-v1:0';
-    
-    const requestBody = {
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 150,
-      temperature: 0.7,
-      messages: [
-        {
-          role: "user",
-          content: prompt
+    // If GEMINI config present, call Gemini HTTP API (simple path)
+    const apiKey = process.env.GEMINI_API_KEY;
+    const url = process.env.GEMINI_URL; // optional custom endpoint
+    if (apiKey && url) {
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({ prompt, temperature: 0.7, maxOutputTokens: 150 })
+        });
+        if (resp.ok) {
+          const j = await resp.json().catch(()=>null);
+          const text = j?.candidates?.[0]?.content || j?.output?.[0]?.content || j?.text || (typeof j === 'string' ? j : null);
+          if (text && typeof text === 'string') return text.trim();
+        } else {
+          console.warn('Gemini HTTP returned non-ok', resp.status, await resp.text().catch(()=>null));
         }
-      ]
-    };
+      } catch (gErr) {
+        console.warn('Gemini HTTP call failed, falling back to template:', String(gErr?.message || gErr));
+      }
+    }
 
-    const command = new InvokeModelCommand({
-      modelId,
-      contentType: 'application/json',
-      body: JSON.stringify(requestBody)
-    });
+    // Fallback to local templates
+    return generateFallbackCommentary(eventType, payload);
 
-    const response = await bedrockClient.send(command);
-    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-    
-    const commentary = responseBody.content?.[0]?.text?.trim() || 
-                      generateFallbackCommentary(eventType, eventPayload);
-
-    return commentary;
-
-  } catch (error) {
-    console.error('Error calling Bedrock:', error);
-    // Fallback to template-based commentary
-    return generateFallbackCommentary(gameEvent?.type, gameEvent?.payload);
+  } catch (err) {
+    console.error('Error generating commentary text:', err);
+    return generateFallbackCommentary(null, null);
   }
 }
 
-function generateEventDescription(event) {
-  const type = event.type;
-  const payload = event.payload || {};
-  
-  switch (type.toLowerCase()) {
-    case 'touchdown':
-      return `Touchdown by ${payload.team || 'team'}`;
-    case 'field_goal':
-      return `Field goal by ${payload.team || 'team'}`;
-    case 'timeout':
-      return `Timeout called by ${payload.team || 'team'}`;
-    case 'kickoff':
-      return `Kickoff by ${payload.team || 'team'}`;
-    default:
-      return payload.text || `${type} play`;
-  }
-}
+// Very small template-based fallback for immediate commentary
+function generateFallbackCommentary(eventType, payload) {
+  const t = (eventType || '').toString().toLowerCase();
 
-function generateFallbackCommentary(eventType, eventPayload) {
   const templates = {
     touchdown: [
       "TOUCHDOWN! What an incredible finish to that drive!",
-      "They punch it into the end zone! Six points on the board!",
-      "A magnificent touchdown! The crowd is on their feet!"
+      "They punch it into the end zone! Six points on the board!"
     ],
     field_goal: [
-      "It's good! Three points through the uprights!",
-      "The kicker splits the uprights perfectly!",
-      "A clutch field goal when they needed it most!"
+      "The kicker splits the uprights! Three points!",
+      "Field goal is good — a nice swing on the scoreboard!"
     ],
-    timeout: [
-      "Timeout called at a crucial moment in this game!",
-      "The coach calls for a timeout to regroup the team!",
-      "Strategic timeout to stop the momentum!"
+    turnover: [
+      "Turnover! What a crucial mistake at a pivotal moment!",
+      "Ball's out — turnover changes possession!"
     ],
-    kickoff: [
-      "Here we go! The kickoff sends the ball sailing down the field!",
-      "The game is underway with this kickoff!",
-      "A booming kickoff to get things started!"
-    ],
-    play: [
-      "What a play! The execution was flawless!",
-      "An impressive display of skill on that play!",
-      "The players are really showing their talent out there!"
+    default: [
+      `What a play! ${payload?.playerName ? payload.playerName + ' makes a play.' : ''}`,
+      "An exciting sequence — great effort by the players involved."
     ]
   };
 
-  const eventTemplates = templates[eventType?.toLowerCase()] || templates.play;
-  const randomTemplate = eventTemplates[Math.floor(Math.random() * eventTemplates.length)];
-  
-  return randomTemplate;
+  if (t.includes('touchdown')) return randomFrom(templates.touchdown);
+  if (t.includes('field_goal') || t.includes('fieldgoal')) return randomFrom(templates.field_goal);
+  if (t.includes('turnover') || t.includes('interception') || t.includes('fumble')) return randomFrom(templates.turnover);
+  return randomFrom(templates.default);
 }
+
+function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }

@@ -46,6 +46,13 @@ function hasKey(obj: unknown, key: string): boolean {
 
 function formatPlayText(ev: GameEvent) {
 	const payload = ev.payload;
+
+	// --- new: prefer backend/ingest-provided description field when present ---
+	if (payload && typeof payload === 'object') {
+		const desc = getString(payload, 'description');
+		if (desc && desc.trim().length > 0) return desc;
+	}
+
 	const playType = getString(payload, 'playType');
 
 	if (playType === 'run' || (hasKey(payload, 'runner') && getString(payload, 'runner'))) {
@@ -193,7 +200,7 @@ export default function Timeline({ events = [], className }: Props) {
 
 			{gameStartEvent ? (
 				<div className="mb-4 p-3 bg-gray-50 rounded border">
-					<div className="text-sm font-semibold text-gray-900">Game started</div>
+					<div className="text-sm font-semibold text-gray-900"></div>
 					<div className="text-xs text-gray-600">
 						{isObject(gameStartEvent.payload) && getString(gameStartEvent.payload, 'text')
 							? getString(gameStartEvent.payload, 'text')
@@ -310,7 +317,7 @@ export default function Timeline({ events = [], className }: Props) {
 
 			{gameEndEvent ? (
 				<div className="mt-6 p-3 bg-gray-50 rounded border">
-					<div className="text-sm font-semibold text-gray-900">Game ended</div>
+					<div className="text-sm font-semibold text-gray-900"></div>
 					<div className="text-xs text-gray-600">
 						{isObject(gameEndEvent.payload) && getString(gameEndEvent.payload, 'text')
 							? getString(gameEndEvent.payload, 'text')
