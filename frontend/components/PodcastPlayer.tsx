@@ -94,10 +94,9 @@ export default function PodcastPlayer({ id, src, title }: PodcastPlayerProps) {
       <button
         type="button"
         onClick={togglePlay}
-        className="flex h-6 w-6 items-center justify-center bg-emerald-500 hover:bg-emerald-400 text-[24px] font-semibold"
+        className="flex h-6 w-6 items-center justify-center golden hover:bg-emerald-400 text-[24px] font-semibold"
         style={{
           backgroundColor: "transparent",
-          color: "white",
           border: "0px",
           paddingRight: "10px",
           outline: "none",
@@ -126,7 +125,8 @@ export default function PodcastPlayer({ id, src, title }: PodcastPlayerProps) {
             step={0.5}
             value={currentTime}
             onChange={handleSeek}
-            className="flex-1 h-1 accent-emerald-500"
+            className="flex-1 h-1 golden"
+            style={{ cursor: "pointer", boxShadow: "none", border: "0px" }}
           />
           <span className="whitespace-nowrap text-[10px] text-zinc-400">
             {formatTime(currentTime)} / {formatTime(duration)}

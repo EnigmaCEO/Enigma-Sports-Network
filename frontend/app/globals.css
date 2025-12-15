@@ -5,8 +5,8 @@
 
 /* ...existing variables... */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0B0D10;
+  --foreground: #F2F2F2;
 }
 
 /* small, safe base-layer customizations (keeps Tailwind Preflight) */
@@ -32,7 +32,7 @@
 
   /* a minimal accessible link style */
   a {
-    color: inherit;
+    color: #C9A24D;
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
@@ -43,6 +43,20 @@
     outline: 2px solid transparent;
     outline-offset: 2px;
     box-shadow: 0 0 0 3px rgba(59,130,246,0.35); /* blue focus ring similar to Tailwind's ring */
+  }
+
+  h2, h3, p{
+    color: var(--foreground);
+  }
+
+  .golden {
+    color: #C9A24D;
+    accent-color: #C9A24D;
+  }
+
+  .golden-border {
+    border-color: #cccccc;
+    box-shadow: none;
   }
 }
 
@@ -57,8 +71,8 @@
 /* dark mode via prefers-color-scheme (preserve your values) */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0a0b0c;
+    --foreground: #F2F2F2;
   }
 }
 

@@ -634,7 +634,7 @@ export default function Home() {
                               />
                             ) : null}
                             <div style={{ alignSelf: "center" }}>
-                              <div className="text-sm font-medium"
+                              <div className="text-sm font-medium golden"
                                 style={{ fontSize: "larger", fontWeight: "bold" }}>
                               {act.title}
                               </div>
@@ -647,7 +647,7 @@ export default function Home() {
                             </div>
                           </div>
 
-                          <div className="w-24 text-right text-xs text-zinc-500"
+                          <div className="w-24 text-right text-xs text-zinc-500 golden"
                             style={{ alignSelf: "center", paddingRight: "10px", fontSize: "larger" }}>
                             {act.timeAgo ?? "now"}
                           </div>
@@ -679,8 +679,8 @@ export default function Home() {
                               <button
                                 type="button"
                                 onClick={() => router.push(articlePath)}
-                                className="bg-[#101010] flex items-center justify-center gap-2 px-4 py-2"
-                                style={{ color: "white", border: "0px", boxShadow: "none", 
+                                className="bg-[#101010] flex items-center justify-center gap-2 px-4 py-2 golden"
+                                style={{ border: "0px", boxShadow: "none", 
                                   height: "100%", fontSize: "12px",width: "36%", textTransform: "uppercase", cursor: "pointer" }}
                               >
                                 {/* Document icon */}
@@ -694,28 +694,28 @@ export default function Home() {
                                 >
                                   <path
                                     d="M7 3H13L18 8V21H7V3Z"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                   />
                                   <path
                                     d="M13 3V8H18"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                   />
                                   <path
                                     d="M9.5 12H15.5"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                   />
                                   <path
                                     d="M9.5 15H13.5"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
@@ -728,8 +728,8 @@ export default function Home() {
                               <button
                                 type="button"
                                 onClick={() => router.push(playByPlayPath)}
-                                className="bg-[#101010] flex items-center justify-center gap-2 px-4 py-2"
-                                style={{ color: "white", border: "0px", boxShadow: "none", height: "100%", 
+                                className="bg-[#101010] flex items-center justify-center gap-2 px-4 py-2 golden"
+                                style={{ border: "0px", boxShadow: "none", height: "100%", 
                                   fontSize: "12px", width: "36%", textTransform: "uppercase", cursor: "pointer" }}
                               >
                                 {/* List / timeline icon */}
@@ -745,38 +745,38 @@ export default function Home() {
                                     cx="6"
                                     cy="6"
                                     r="1.5"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                   />
                                   <circle
                                     cx="6"
                                     cy="12"
                                     r="1.5"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                   />
                                   <circle
                                     cx="6"
                                     cy="18"
                                     r="1.5"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                   />
                                   <path
                                     d="M10 6H18"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                     strokeLinecap="round"
                                   />
                                   <path
                                     d="M10 12H18"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                     strokeLinecap="round"
                                   />
                                   <path
                                     d="M10 18H18"
-                                    stroke="white"
+                                    stroke="#C9A24D"
                                     strokeWidth="1.5"
                                     strokeLinecap="round"
                                   />
@@ -806,10 +806,9 @@ export default function Home() {
             </section>
             
             {/* Highlights  */}
-            <section className="rounded-lg bg-white p-6 shadow-sm dark:bg-[#ededed]"
+            <section className="rounded-lg bg-white p-6 shadow-sm dark:bg-[#2A2E35]"
             style={{ padding: "5px", width: "28%" }}>
-              <h2 className="text-lg font-medium text-black dark:text-zinc-50"
-              style={{ color: "black" }}>
+              <h2 className="text-lg font-medium text-black dark:text-zinc-50">
                 News & Highlights
               </h2>
 
@@ -827,8 +826,8 @@ export default function Home() {
                 )}
                 {!articleLoading && !articleError && highlightArticle && (
                   <>
-                    <div className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-3 shadow-sm"
-                    style={{ paddingBottom: "20px" }}>
+                    <div className="w-full rounded-lg border golden-border"
+                    style={{ marginBottom: "20px", boxShadow: "none" }}>
                       <button
                         type="button"
                         onClick={() =>
@@ -839,13 +838,13 @@ export default function Home() {
                             )}`
                           )
                         }
-                        className="w-full text-left"
+                        className="w-full text-left bg-[#101010]"
                         style={{ cursor: "pointer" }}
                       >
-                        <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1">
+                        <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
                           ESN Recap
                         </div>
-                        <h3 className="text-sm font-semibold mb-1">
+                        <h3 className="text-sm font-semibold mb-1 golden">
                           {highlightArticle.title}
                         </h3>
                         {highlightArticle.dek && (
@@ -860,8 +859,8 @@ export default function Home() {
                     {/* Card 2: HIGHLIGHT (key moment) */}
                     {Array.isArray(highlightArticle.keyMoments) &&
                       highlightArticle.keyMoments.length > 0 && (
-                        <div className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-3 shadow-sm"
-                        style={{ paddingBottom: "20px" }}>
+                        <div className="w-full rounded-lg border golden-border"
+                        style={{ marginBottom: "20px", boxShadow: "none" }}>
                           <button
                             type="button"
                             onClick={() =>
@@ -872,7 +871,7 @@ export default function Home() {
                                 )}`
                               )
                             }
-                            className="w-full text-left"
+                            className="w-full text-left bg-[#101010]"
                             style={{ cursor: "pointer" }}
                           >
                             {(() => {
@@ -884,10 +883,10 @@ export default function Home() {
 
                               return (
                                 <>
-                                  <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1">
+                                  <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
                                     Highlight
                                   </div>
-                                  <h3 className="text-sm font-semibold mb-1">
+                                  <h3 className="text-sm font-semibold mb-1 golden">
                                     {moment}
                                   </h3>
                                   <p className="text-[11px] text-zinc-500">
@@ -913,18 +912,32 @@ export default function Home() {
                   )}
 
                 {/* SPOTLIGHT card (client-only, broken record) */}
-                <div className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-3 shadow-sm"
-                style={{ paddingBottom: "20px" }}>
+                <div className="w-full rounded-lg border golden-border"
+                    style={{ marginBottom: "20px", boxShadow: "none" }}>
                 <button
                             type="button"
-                            className="w-full text-left"
+                            className="w-full text-left bg-[#101010]"
                             style={{ cursor: "pointer" }}
                           >
                   <div className="w-full text-left">
-                    <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1">
+                    <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
                       Spotlight
                     </div>
-                    <h3 className="text-sm font-semibold mb-1">
+
+                    {/* full-width image under header */}
+                    <div className="mb-2 rounded-sm overflow-hidden">
+                      <Image
+                        src="/spotlight.png"
+                        alt="Spotlight player"
+                        width={600}          // arbitrary, overridden by style
+                        height={320}
+                        className="block"
+                        style={{ width: "100%", height: "auto", display: "block", paddingTop: "10px" }}
+                      />
+                    </div>
+
+                    {/* title + dek below image */}
+                    <h3 className="text-sm font-semibold mb-1 golden">
                       {spotlightArticle.title}
                     </h3>
                     {spotlightArticle.dek && (
@@ -932,23 +945,35 @@ export default function Home() {
                         {spotlightArticle.dek}
                       </p>
                     )}
-                    
                   </div>
                   </button>
                 </div>
 
                 {/* TOURNAMENT card (fictional, client-only) */}
-                <div className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-3 shadow-sm"
-                style={{ paddingBottom: "20px" }}>
+                <div className="w-full rounded-lg border golden-border"
+                    style={{ marginBottom: "20px", boxShadow: "none" }}>
                   <button
                     type="button"
-                    className="w-full text-left"
+                    className="w-full text-left bg-[#101010]"
                     style={{ cursor: "pointer" }}
                   >
-                    <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1">
+                    <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
                       Tournament
                     </div>
-                    <h3 className="text-sm font-semibold mb-1">
+
+                    {/* full-width image under header */}
+                    <div className="mb-2 rounded-sm overflow-hidden">
+                      <Image
+                        src="/tournament.png"
+                        alt="Tournament Winners"
+                        width={600}          // arbitrary, overridden by style
+                        height={320}
+                        className="block"
+                        style={{ width: "100%", height: "auto", display: "block", paddingTop: "10px" }}
+                      />
+                    </div>
+
+                    <h3 className="text-sm font-semibold mb-1, golden">
                       {tournamentArticle.title}
                     </h3>
                     {tournamentArticle.dek && (
