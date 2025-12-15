@@ -37,6 +37,7 @@ export default async function ArticlePage({ params }: Props) {
 	const published = article.publishedAt
 		? new Date(article.publishedAt)
 		: null;
+	published?.toLocaleString();
 
 	return (
 		<main className="mx-auto max-w-3xl p-6 space-y-6">

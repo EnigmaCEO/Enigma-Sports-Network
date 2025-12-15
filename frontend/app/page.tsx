@@ -60,7 +60,7 @@ interface ApiTimelineItem {
 }
 
 export default function Home() {
-  const { activities, status } = useRealtime();
+  const { activities } = useRealtime();
   const [recentActivities, setRecentActivities] = useState<TimelineItem[]>([]);
   const [selectedAppId, setSelectedAppId] = useState<string | "all">("all");
   const { setScoreboard } = useScoreboardSlot();
@@ -252,6 +252,7 @@ export default function Home() {
           if (gameStart.payload) console.debug(`[timeline] gameId=${gameId} gameStart.payload keys:`, Object.keys(gameStart.payload));
         } catch (err) {
           console.debug(`[timeline] gameId=${gameId} gameStart (raw):`, gameStart);
+          console.debug(err);
         }
 
         const top = gameStart as unknown as Record<string, unknown>;
@@ -276,7 +277,7 @@ export default function Home() {
         console.log(`[timeline] gameId=${gameId} latest event type:`, latest?.type, "timestamp:", latest?.timestamp);
         if (latest?.payload) console.debug(`[timeline] gameId=${gameId} latest.payload keys:`, Object.keys(latest.payload));
 
-        const appDisplay = String(appId);
+        //const appDisplay = String(appId);
         const home = gameStart?.payload?.homeTeam ?? gameStart?.payload?.team ?? "Home";
         const away = gameStart?.payload?.awayTeam ?? "Away";
 
