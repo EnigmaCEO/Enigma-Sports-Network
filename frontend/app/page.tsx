@@ -2,10 +2,14 @@
 
 import useRealtime from "./hooks/useRealtime";
 import { useEffect, useState, useRef, useMemo } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import fetchJson from "../lib/fetchJson";
 import { useScoreboardSlot } from "./layout"; // relative to app root
+import { useRouter } from "next/navigation";
+import PodcastPlayer from "../components/PodcastPlayer";
+import { PodcastProvider } from "../components/PodcastContext";
+import { fetchHighlightArticle } from "../lib/clientArticles"; // <-- updated import
+import { pickRandomKeyMomentIndex } from "../lib/randomKeyMoment"; // <-- new import
 
 interface TimelineItem {
   id?: string;
@@ -60,8 +64,44 @@ export default function Home() {
   const [recentActivities, setRecentActivities] = useState<TimelineItem[]>([]);
   const [selectedAppId, setSelectedAppId] = useState<string | "all">("all");
   const { setScoreboard } = useScoreboardSlot();
+  const router = useRouter();
+
+  // article state for highlights card (single article test)
+  const [highlightArticle, setHighlightArticle] = useState<{
+    title: string;
+    dek?: string;
+    gameId?: string;
+    keyMoments?: string[];
+  } | null>(null);
+  const [articleLoading, setArticleLoading] = useState(false);
+  const [articleError, setArticleError] = useState<string | null>(null);
+
+  // static SPOTLIGHT record (fictional, client-only)
+  const spotlightArticle = {
+    type: "SPOTLIGHT",
+    title:
+      "Rising Star RB Jalen Cross Shatters EFL Single-Game Rushing Record",
+    dek: "Jalen Cross powered the Wraiths’ ground attack with 324 rushing yards and 4 touchdowns, rewriting the EFL record books in a dominant, wire-to-wire performance.",
+  };
+
+  // new: static TOURNAMENT celebration card (fictional, client-only)
+  const tournamentArticle = {
+    type: "TOURNAMENT",
+    title: "Cyclones Capture Bitcoin Invitational Title and $5,000 Prize",
+    dek: "The Cyclones rode a relentless fourth-quarter surge to win the Bitcoin Invitational, clinching the 1st place and a $5,000 worth of BTC prize.",
+  };
 
   const mountedRef = useRef(true);
+
+  const [randomKeyMomentIndex, setRandomKeyMomentIndex] = useState(0);
+
+  const derivedRandomKeyMomentIndex = useMemo(() => {
+    return pickRandomKeyMomentIndex(highlightArticle?.keyMoments);
+  }, [highlightArticle]);
+
+  useEffect(() => {
+    setRandomKeyMomentIndex(derivedRandomKeyMomentIndex);
+  }, [derivedRandomKeyMomentIndex]);
 
   async function loadTimeline() {
     try {
@@ -352,14 +392,81 @@ export default function Home() {
     );
   }, [displayActivities, selectedAppId]);
 
-  // last 5 game summaries (with scores) for scoreboard bar
+  // derive scoreboard items (last 5 game summaries) from filtered activities
   const scoreboardItems = useMemo(() => {
-    const games = (filteredActivities as TimelineItem[]).filter((a) => a.gameId);
-    const sorted = games
-      .slice()
-      .sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
-    return sorted.slice(0, 5);
+    return (filteredActivities as TimelineItem[])
+      .filter((act) => act.type === "game_summary")
+      .slice(0, 5);
   }, [filteredActivities]);
+
+  // pick a gameId to use for the highlight article (first game_summary with a gameId)
+  const highlightGameId = useMemo(() => {
+    const gameSummary = (filteredActivities as TimelineItem[]).find(
+      (act) => act.type === "game_summary" && act.gameId
+    );
+    return gameSummary?.gameId ?? null;
+  }, [filteredActivities]);
+
+  // load one article for highlights card
+  useEffect(() => {
+    console.log("[highlight] using highlightGameId:", highlightGameId);
+
+    if (!highlightGameId) {
+      console.log("[highlight] highlightGameId missing, clearing article");
+      setHighlightArticle(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      // set loading state at the start of the async side-effect
+      setArticleLoading(true);
+      setArticleError(null);
+
+      console.log("[highlight] calling fetchHighlightArticle");
+      const article = await fetchHighlightArticle();
+      console.log("[highlight] fetchHighlightArticle response:", article);
+
+      if (cancelled) {
+        console.log("[highlight] request cancelled, ignoring response");
+        return;
+      }
+
+      if (!article) {
+        setArticleError(
+          "API returned no article data for highlight. Check /api/highlight-article route."
+        );
+        setHighlightArticle(null);
+        setArticleLoading(false);
+        return;
+      }
+
+      console.log("[highlight] loaded article title:", article.title);
+      setHighlightArticle({
+        title: article.title,
+        dek: article.dek,
+        gameId: highlightGameId,
+        keyMoments: article.keyMoments,
+      });
+      setArticleError(null);
+      setArticleLoading(false);
+    })().catch((err) => {
+      console.error("[highlight] unexpected error:", err);
+      if (!cancelled) {
+        setArticleError(
+          "Could not load highlight article (see console for details)."
+        );
+        setHighlightArticle(null);
+        setArticleLoading(false);
+      }
+    });
+
+    return () => {
+      console.log("[highlight] cancelling in-flight highlight request");
+      cancelled = true;
+    };
+  }, [highlightGameId]);
 
   // push scoreboard UI into layout slot
   useEffect(() => {
@@ -462,123 +569,399 @@ export default function Home() {
   }, [setScoreboard, selectedAppId, appIdOptions, scoreboardItems]);
 
   return (
-    <div className="flex min-h-screen items-start justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="w-full max-w-5xl space-y-8 py-12 px-6">
-        <header className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Activity Dashboard
-              </p>
+    <PodcastProvider>
+      <div className="flex min-h-screen items-start justify-center bg-zinc-50 font-sans dark:bg-black">
+        <main className="w-full max-w-5xl space-y-8 py-12 px-6">
+          <header className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Activity Dashboard
+                </p>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        {/* Recent Games (uses same filter) */}
-        <section className="rounded-lg bg-white p-6 shadow-sm dark:bg-[#0b0b0b]">
-          <h2 className="text-lg font-medium text-black dark:text-zinc-50">
-            Recent Coverage
-          </h2>
-          <ul className="mt-4 space-y-3">
-            {filteredActivities.length > 0 ? (
-              filteredActivities.map((act) => {
-                const gameId =
-                  "gameId" in act ? (act as TimelineItem).gameId : undefined;
-                const appId =
-                  "appId" in act ? (act as TimelineItem).appId : undefined;
-                const iconSrc =
-                  appId === "efl-online" ? "/efl-online.png" : undefined;
+          {/* Coverage + Highlights row */}
+          <div className="flex flex-row justify-between gap-4">
+            {/* Recent Games (uses same filter) */}
+            <section className="rounded-lg bg-white p-6 shadow-sm dark:bg-[#0b0b0b]"
+            style={{ padding: "5px", width: "70%" }}>
+              <h2 className="text-lg font-medium text-black dark:text-zinc-50">
+                Recent Coverage
+              </h2>
+              <ul className="mt-4 space-y-3">
+                {filteredActivities.length > 0 ? (
+                  filteredActivities.map((act) => {
+                    const gameId =
+                      "gameId" in act ? (act as TimelineItem).gameId : undefined;
+                    const appId =
+                      "appId" in act ? (act as TimelineItem).appId : undefined;
+                    const iconSrc =
+                      appId === "efl-online" ? "/efl-online.png" : undefined;
 
-                const recapUrl = gameId
-                  ? `https://d2nuzfnuy59hla.cloudfront.net/${encodeURIComponent(
-                      String(gameId)
-                    )}.mp3`
-                  : null;
+                    const recapUrl = gameId
+                      ? `https://d2nuzfnuy59hla.cloudfront.net/${encodeURIComponent(
+                          String(gameId)
+                        )}.mp3`
+                      : null;
 
-                return (
-                  <li
-                    key={act.id}
-                    className="flex items-start justify-between gap-4"
-                  >
-                    <div className="flex flex-1 items-start gap-3">
-                      {iconSrc ? (
-                        <Image
-                          src={iconSrc}
-                          alt="efl-online"
-                          width={64}
-                          height={64}
-                          className="rounded-sm"
-                        />
-                      ) : null}
-                      <div style={{ alignSelf: "center" }}>
-                        <div className="text-sm font-medium">
-                          {gameId ? (
-                            <Link
-                              href={`/games/${encodeURIComponent(
-                                String(gameId)
-                              )}`}
-                              className="hover:underline"
-                            >
+                    // new: target paths for article and play-by-play
+                    const articlePath = gameId
+                      ? `/articles/${encodeURIComponent(String(gameId))}`
+                      : null;
+                    const playByPlayPath = gameId
+                      ? `/games/${encodeURIComponent(String(gameId))}`
+                      : null;
+
+                    return (
+                      <li
+                        key={act.id}
+                        className="flex flex-col gap-1"
+                      >
+                        {/* Row 1: title / game id / time */}
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex flex-1 items-start gap-3">
+                            {iconSrc ? (
+                              <Image
+                                src={iconSrc}
+                                alt="efl-online"
+                                width={64}
+                                height={64}
+                                className="rounded-sm"
+                                style={{ marginRight: "10px"}}
+                              />
+                            ) : null}
+                            <div style={{ alignSelf: "center" }}>
+                              <div className="text-sm font-medium"
+                                style={{ fontSize: "larger", fontWeight: "bold" }}>
                               {act.title}
-                            </Link>
-                          ) : (
-                            act.title
-                          )}
+                              </div>
+                              <div
+                                className="text-xs text-zinc-500 dark:text-zinc-400"
+                                style={{ fontSize: "x-small" }}
+                              >
+                                {gameId ? `Game ID: ${gameId}` : null}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="w-24 text-right text-xs text-zinc-500"
+                            style={{ alignSelf: "center", paddingRight: "10px", fontSize: "larger" }}>
+                            {act.timeAgo ?? "now"}
+                          </div>
                         </div>
-                        <div
-                          className="text-xs text-zinc-500 dark:text-zinc-400"
-                          style={{ fontSize: "x-small" }}
-                        >
-                          {gameId ? `Game ID: ${gameId}` : null}
+
+                        {/* Row 2: audio + article + play-by-play buttons */}
+                        <div className="flex items-center justify-between gap-4 pl-[67px]"
+                        style={{ paddingBottom: "15px" }}>
+                          {/* custom podcast player */}
+                          <div className="flex-1 flex flex-col items-center justify-center gap-1">
+                            {recapUrl ? (
+                              <>
+                                <span className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                  
+                                </span>
+                                <PodcastPlayer
+                                  id={gameId ? String(gameId) : String(act.id ?? "")}
+                                  src={recapUrl}
+                                  title={"Final Verdict Podcast"}
+                                />
+                              </>
+                            ) : null}
+                          </div>
+
+                          {/* button pills for article / play-by-play */}
+                          <div className="flex items-center gap-2"
+                          style={{ width: "80%", height: "60px", justifyContent: "space-evenly" }}>
+                            {articlePath && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(articlePath)}
+                                className="bg-[#101010] flex items-center justify-center gap-2 px-4 py-2"
+                                style={{ color: "white", border: "0px", boxShadow: "none", 
+                                  height: "100%", fontSize: "12px",width: "36%", textTransform: "uppercase", cursor: "pointer" }}
+                              >
+                                {/* Document icon */}
+                                <svg
+                                  aria-hidden="true"
+                                  width="24"
+                                  height="24"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                >
+                                  <path
+                                    d="M7 3H13L18 8V21H7V3Z"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="M13 3V8H18"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="M9.5 12H15.5"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="M9.5 15H13.5"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                                <span style={{ padding: '10px' }}>ESN Recap</span>
+                              </button>
+                            )}
+                            {playByPlayPath && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(playByPlayPath)}
+                                className="bg-[#101010] flex items-center justify-center gap-2 px-4 py-2"
+                                style={{ color: "white", border: "0px", boxShadow: "none", height: "100%", 
+                                  fontSize: "12px", width: "36%", textTransform: "uppercase", cursor: "pointer" }}
+                              >
+                                {/* List / timeline icon */}
+                                <svg
+                                  aria-hidden="true"
+                                  width="24"
+                                  height="24"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                >
+                                  <circle
+                                    cx="6"
+                                    cy="6"
+                                    r="1.5"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                  />
+                                  <circle
+                                    cx="6"
+                                    cy="12"
+                                    r="1.5"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                  />
+                                  <circle
+                                    cx="6"
+                                    cy="18"
+                                    r="1.5"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                  />
+                                  <path
+                                    d="M10 6H18"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                  />
+                                  <path
+                                    d="M10 12H18"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                  />
+                                  <path
+                                    d="M10 18H18"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                  />
+                                </svg>
+                                <span style={{ padding: '10px' }}>Play by Play</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
+                      </li>
+                    );
+                  })
+                ) : (
+                  <>
+                    <li className="flex items-start justify-between">
+                      <div>
+                        <div className="text-sm font-medium">
+                          Loading game data...
+                        </div>
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400"></div>
                       </div>
+                      <div className="text-xs text-zinc-500"></div>
+                    </li>
+                  </>
+                )}
+              </ul>
+            </section>
+            
+            {/* Highlights  */}
+            <section className="rounded-lg bg-white p-6 shadow-sm dark:bg-[#ededed]"
+            style={{ padding: "5px", width: "28%" }}>
+              <h2 className="text-lg font-medium text-black dark:text-zinc-50"
+              style={{ color: "black" }}>
+                News & Highlights
+              </h2>
+
+              {/* single-article test cards */}
+              <div className="mt-4 space-y-3 text-sm">
+                {articleLoading && (
+                  <p className="text-xs text-zinc-500">
+                    Loading article for {highlightGameId}…
+                  </p>
+                )}
+                {!articleLoading && articleError && (
+                  <p className="text-xs text-red-500">
+                    {articleError}
+                  </p>
+                )}
+                {!articleLoading && !articleError && highlightArticle && (
+                  <>
+                    <div className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-3 shadow-sm"
+                    style={{ paddingBottom: "20px" }}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          highlightArticle.gameId &&
+                          router.push(
+                            `/articles/${encodeURIComponent(
+                              highlightArticle.gameId
+                            )}`
+                          )
+                        }
+                        className="w-full text-left"
+                        style={{ cursor: "pointer" }}
+                      >
+                        <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1">
+                          ESN Recap
+                        </div>
+                        <h3 className="text-sm font-semibold mb-1">
+                          {highlightArticle.title}
+                        </h3>
+                        {highlightArticle.dek && (
+                          <p className="text-xs text-zinc-600 line-clamp-3">
+                            {highlightArticle.dek}
+                          </p>
+                        )}
+                      </button>
+
                     </div>
 
-                    <div className="flex flex-1 flex-col items-center justify-center gap-1">
-                      {recapUrl ? (
-                        <>
-                          <span className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                            Recap Podcast
-                          </span>
-                          <audio
-                            controls
-                            preload="none"
-                            className="w-40 h-6 text-[10px] opacity-70 scale-90 hover:opacity-100 hover:scale-100 transition-transform transition-opacity"
-                            style={{
-                              minWidth: 0,
-                              width: "160px",
-                              height: "40px",
-                            }}
+                    {/* Card 2: HIGHLIGHT (key moment) */}
+                    {Array.isArray(highlightArticle.keyMoments) &&
+                      highlightArticle.keyMoments.length > 0 && (
+                        <div className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-3 shadow-sm"
+                        style={{ paddingBottom: "20px" }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              highlightArticle.gameId &&
+                              router.push(
+                                `/articles/${encodeURIComponent(
+                                  highlightArticle.gameId
+                                )}`
+                              )
+                            }
+                            className="w-full text-left"
+                            style={{ cursor: "pointer" }}
                           >
-                            <source src={recapUrl} type="audio/mpeg" />
-                            Your browser does not support the audio element.
-                          </audio>
-                        </>
-                      ) : null}
-                    </div>
+                            {(() => {
+                              const kms =
+                                highlightArticle.keyMoments as string[];
+                              const idx =
+                                kms.length > 1 ? randomKeyMomentIndex : 0;
+                              const moment = kms[idx];
 
-                    <div className="w-24 text-right text-xs text-zinc-500">
-                      {act.timeAgo ?? "now"}
+                              return (
+                                <>
+                                  <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1">
+                                    Highlight
+                                  </div>
+                                  <h3 className="text-sm font-semibold mb-1">
+                                    {moment}
+                                  </h3>
+                                  <p className="text-[11px] text-zinc-500">
+                                    Key moment from{" "}
+                                    <span className="italic">
+                                      {highlightArticle.title}
+                                    </span>
+                                  </p>
+                                </>
+                              );
+                            })()}
+                          </button>
+                        </div>
+                      )}
+                  </>
+                )}
+                {!articleLoading &&
+                  !articleError &&
+                  !highlightArticle && (
+                    <p className="text-xs text-zinc-500">
+                      No highlight article available yet for {highlightGameId}.
+                    </p>
+                  )}
+
+                {/* SPOTLIGHT card (client-only, broken record) */}
+                <div className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-3 shadow-sm"
+                style={{ paddingBottom: "20px" }}>
+                <button
+                            type="button"
+                            className="w-full text-left"
+                            style={{ cursor: "pointer" }}
+                          >
+                  <div className="w-full text-left">
+                    <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1">
+                      Spotlight
                     </div>
-                  </li>
-                );
-              })
-            ) : (
-              <>
-                <li className="flex items-start justify-between">
-                  <div>
-                    <div className="text-sm font-medium">
-                      Loading game data...
-                    </div>
-                    <div className="text-xs text-zinc-500 dark:text-zinc-400"></div>
+                    <h3 className="text-sm font-semibold mb-1">
+                      {spotlightArticle.title}
+                    </h3>
+                    {spotlightArticle.dek && (
+                      <p className="text-xs text-zinc-600 line-clamp-3">
+                        {spotlightArticle.dek}
+                      </p>
+                    )}
+                    
                   </div>
-                  <div className="text-xs text-zinc-500"></div>
-                </li>
-              </>
-            )}
-          </ul>
-        </section>
-      </main>
-    </div>
+                  </button>
+                </div>
+
+                {/* TOURNAMENT card (fictional, client-only) */}
+                <div className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-3 shadow-sm"
+                style={{ paddingBottom: "20px" }}>
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    style={{ cursor: "pointer" }}
+                  >
+                    <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1">
+                      Tournament
+                    </div>
+                    <h3 className="text-sm font-semibold mb-1">
+                      {tournamentArticle.title}
+                    </h3>
+                    {tournamentArticle.dek && (
+                      <p className="text-xs text-zinc-600 line-clamp-3">
+                        {tournamentArticle.dek}
+                      </p>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </PodcastProvider>
   );
 }
