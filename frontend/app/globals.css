@@ -98,7 +98,13 @@
   order: 3;        /* news last */
 }
 
-/* >=1280px: 3 columns, 15% / 65% / 20%, in left→right = news / main / highlights */
+@media (min-width: 0px) {
+  ul {
+    padding-inline-start: 0px;
+  }
+}
+
+/* >=1280px: 3 columns, AND featured-body desktop override */
 @media (min-width: 1280px) {
   .coverage-row {
     display: flex;
@@ -126,6 +132,28 @@
     order: 3;
     flex-basis: 20%;
     max-width: 20%;
+  }
+
+  /* Featured Game body: side-by-side on desktop */
+  .featured-body {
+    flex-direction: row !important; /* force row for now */
+  }
+
+  .featured-body__image,
+  .featured-body__content {
+    width: 50%;
+  }
+
+  .featured-body__image {
+    padding-right: 10px;
+  }
+
+  .featured-body__content {
+    padding-left: 10px;
+  }
+
+  ul {
+    padding-inline-start: 40px;
   }
 }
 
@@ -167,13 +195,18 @@
   }
 }
 
-/* ...existing body rules (kept by intent) ... */
-/* If you prefer to keep the original body block instead of the one in @layer base,
-   remove the body rule above and uncomment the following block. */
-/*
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Featured Game: default mobile layout (stacked) */
+.featured-body {
+  display: flex;
+  gap: 1rem;
+  flex-direction: column; /* default: stack vertically */
 }
-*/
+
+/* optional modifiers (no layout rules needed) */
+.featured-body--stack { }
+.featured-body--side { }
+
+.featured-body__image,
+.featured-body__content {
+  width: 100%;
+}

@@ -787,16 +787,13 @@ export default function Home() {
                         </p>
                       )}
                     </div>
-                    <div className="text-[10px] text-zinc-500 text-right">
-                      Game ID: {FEATURED_GAME_ID}
-                    </div>
                   </div>
 
-                  {/* 2-column layout: image left, content right */}
-                  <div className="flex flex-row gap-4">
-                    {/* Left: Featured game image */}
+                  {/* Featured game body: layout driven by CSS (see globals.css) */}
+                  <div className="featured-body featured-body--stack featured-body--side">
+                    {/* Featured game image */}
                     {featuredImageUrl && (
-                      <div className="w-1/2 rounded-sm overflow-hidden">
+                      <div className="featured-body__image">
                         <Image
                           src={featuredImageUrl}
                           alt={`Featured game ${FEATURED_GAME_ID}`}
@@ -808,25 +805,27 @@ export default function Home() {
                             height: "100%",
                             objectFit: "cover",
                             display: "block",
-                            paddingRight: "10px",
                           }}
                         />
                       </div>
                     )}
 
-                    {/* Right: final score + key moments + podcast recap */}
-                    <div
-                      className="w-1/2 flex flex-col gap-3"
-                      style={{ paddingLeft: "10px" }}
-                    >
+                    {/* Final score + key moments + podcast recap */}
+                    <div className="featured-body__content">
                       {/* Final score line (large font) */}
                       {featuredScore && (
                         <div className="flex flex-col mb-1">
                           <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1 text-center golden">
                             Final Score
                           </div>
-                          <div className="text-xl font-extrabold text-zinc-50 text-center"
-                          style={{ fontSize: '24px', fontWeight: 'bold', paddingBottom: '40px' }}>
+                          <div
+                            className="text-xl font-extrabold text-zinc-50 text-center"
+                            style={{
+                              fontSize: "24px",
+                              fontWeight: "bold",
+                              paddingBottom: "40px",
+                            }}
+                          >
                             {featuredScore.home}{" "}
                             <span className="golden">
                               {featuredScore.homeScore}
@@ -857,8 +856,7 @@ export default function Home() {
 
                       {/* Podcast recap */}
                       {featuredRecapUrl && (
-                        <div className="mt-1 align-self-center"
-                        style={{ width: "50%" }}>
+                        <div className="mt-1 align-self-center w-1/2">
                           <PodcastPlayer
                             id={FEATURED_GAME_ID}
                             src={featuredRecapUrl}
@@ -931,17 +929,20 @@ export default function Home() {
                             </div>
                           </div>
 
-                          <div className="w-24 text-right text-xs text-zinc-500 golden"
-                            style={{ alignSelf: "center", paddingRight: "50px", fontSize: "larger" }}>
-                            {act.timeAgo ?? "now"}
+                          <div className="w-24 text-right text-xs text-zinc-500 golden x1:pr-50"
+                            style={{ alignSelf: "center", fontSize: "larger" }}>
+                            {/*{act.timeAgo ?? "now"}*/}
                           </div>
                         </div>
 
                         {/* Row 2: audio + article + play-by-play buttons */}
-                        <div className="flex items-center justify-between gap-4 pl-[67px]"
-                        style={{ paddingBottom: "15px" }}>
+                        <div
+                          className="flex items-center justify-between gap-4 xl:pl-[67px]"
+                          style={{ paddingBottom: "15px" }}
+                        >
                           {/* custom podcast player */}
-                          <div className="flex-1 flex flex-col items-center justify-center gap-1">
+                          <div className="flex-1 flex items-center justify-center gap-1"
+                          style={{ justifyContent: "space-evenly", height: "60px", gap: "20px" }}>
                             {recapUrl ? (
                               <>
                                 <span className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -954,11 +955,7 @@ export default function Home() {
                                 />
                               </>
                             ) : null}
-                          </div>
-
-                          {/* button pills for article / play-by-play */}
-                          <div className="flex items-center gap-2"
-                          style={{ width: "80%", height: "60px", justifyContent: "space-evenly" }}>
+                          
                             {articlePath && (
                               <button
                                 type="button"

@@ -54,7 +54,8 @@ function SiteHeader() {
   return (
     <header className="border-b bg-white/60 backdrop-blur-sm">
       <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-      <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
+      <h1 className="text-2xl font-semibold text-black dark:text-zinc-50 no-wrap"
+      style={{ whiteSpace: 'nowrap' }}>
                 Enigma Sports Network
       </h1>
               
@@ -77,7 +78,8 @@ function SiteFooter() {
   return (
     <footer className="border-t bg-white/60 backdrop-blur-sm mt-8">
       <div className="mx-auto max-w-6xl px-4 py-6 text-sm text-neutral-600">
-        <div>© {new Date().getFullYear()} Enigma Sports Network. All rights reserved.</div>
+        <div>© {new Date().getFullYear()} Enigma Sports Network. All rights reserved. </div>
+        <div>ESN generates post-game media using structured game data and AI-assisted content pipelines.</div>
       </div>
     </footer>
   );
