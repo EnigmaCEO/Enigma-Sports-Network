@@ -1,5 +1,6 @@
 import React from 'react';
 import { getArticle } from '../../../lib/articles';
+import Image from 'next/image';
 
 type Props = {
 	// params is a Promise in this Next version
@@ -39,6 +40,11 @@ export default async function ArticlePage({ params }: Props) {
 		: null;
 	published?.toLocaleString();
 
+	// derive highlight image URL
+	const highlightImageUrl = `https://d2zq9pbfla02w4.cloudfront.net/${encodeURIComponent(
+		gameId
+	)}_highlight.png`;
+
 	return (
 		<main className="mx-auto max-w-3xl p-6 space-y-6">
 			<header className="space-y-2">
@@ -63,6 +69,23 @@ export default async function ArticlePage({ params }: Props) {
 					) */}
 				</div>
 			</header>
+
+			{/* article highlight image (50% size) */}
+			<div className="rounded-md overflow-hidden flex justify-center">
+				<Image
+					src={highlightImageUrl}
+					alt={`Highlight for game ${gameId}`}
+					// half of the previous intrinsic size (1200x675 -> 600x337.5 ≈ 600x338)
+					width={600}
+					height={338}
+					className="block"
+					style={{
+						width: '50%',   // render at half the container width
+						height: 'auto',
+						display: 'block',
+					}}
+				/>
+			</div>
 
 			<article className="space-y-4 leading-relaxed">
 				{article.body?.map((para, idx) => (

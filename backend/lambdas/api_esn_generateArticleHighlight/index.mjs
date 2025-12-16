@@ -60,37 +60,18 @@ async function callGeminiForImage(
   });
 
   const first = Array.isArray(json?.data) ? json.data[0] : null;
-  const url = first?.url;
+  const b64 = first?.b64_json;
 
-  if (!url) {
+  if (!b64) {
     console.error(
-      'callGeminiForImage(OpenAI): missing data[0].url in response',
+      'callGeminiForImage(OpenAI): missing data[0].b64_json in response',
       JSON.stringify(json).slice(0, 2000)
     );
-    throw new Error('OpenAI image response missing data[0].url');
+    throw new Error('OpenAI image response missing data[0].b64_json');
   }
 
-  // Fetch the image bytes from the returned URL
-  let imgRes;
-  try {
-    imgRes = await fetch(url);
-  } catch (netErr) {
-    console.error('callGeminiForImage(OpenAI): image URL fetch error', netErr);
-    throw netErr;
-  }
-
-  if (!imgRes.ok) {
-    const errText = await imgRes.text().catch(() => '');
-    console.error(
-      'callGeminiForImage(OpenAI): image URL non-OK',
-      imgRes.status,
-      errText.slice(0, 2000)
-    );
-    throw new Error(`Failed to download OpenAI image ${imgRes.status}: ${errText}`);
-  }
-
-  const arrayBuf = await imgRes.arrayBuffer();
-  return Buffer.from(arrayBuf);
+  // Decode base64 image data directly instead of fetching via URL
+  return Buffer.from(b64, 'base64');
 }
 
 const s3 = new S3Client({});
@@ -207,21 +188,20 @@ export const handler = async (event) => {
 
     const momentsText = `Chosen highlight moment: ${chosenMoment}`;
 
-    const prompt = `Cinematic concept illustration of an American football highlight with no text in the image.
-Depict ONLY this moment:
+    const prompt = `Create an artistic image of an American football highlight without text and branding.
+Depict this moment:
 ${momentsText}
 
 Scene requirements:
-- Landscape stadium view, wide horizontal framing (16:9 feel).
-- Generic uniforms and helmets with no real-world logos or branding.
+- Generic uniforms and helmets with no logos or branding.
+- The image must appear as a raw cinematic frame from a film, with absolutely no graphic overlays or UI of any kind
 
 Strict rules:
 - NO text, NO words, NO numbers, NO captions, NO scoreboard graphics, NO jersey numbers, NO HUD.
 - NO real-world team logos, colors, or branding.
-- NO league logos or recognizable team branding.
-- Professional sports-network hero image style, clean and cinematic.`;
+- NO league logos or recognizable team branding.`;
 
-    const style = clientStyle || 'cinematic concept illustration';
+    const style = clientStyle || 'artistic';
 
     let imageBuffer;
     try {

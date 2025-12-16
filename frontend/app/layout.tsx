@@ -110,7 +110,11 @@ export default function RootLayout({
 
           <SiteHeader />
 
-          <main id="content" className="mx-auto w-full max-w-6xl px-4 py-8 flex-1">
+          {/* widen main container at xl so child grids can span 3 columns comfortably */}
+          <main
+            id="content"
+            className="mx-auto w-full max-w-6xl xl:max-w-[1200px] 2xl:max-w-[1400px] px-4 py-8 flex-1"
+          >
             {children}
           </main>
 

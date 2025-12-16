@@ -66,6 +66,11 @@ export default function Home() {
   const { setScoreboard } = useScoreboardSlot();
   const router = useRouter();
 
+  // Canonical game ids for each card
+  const HIGHLIGHT_GAME_ID = "game-efl-demo-1765532496496";
+  const FEATURED_GAME_ID = "game-efl-demo-1765525727122";
+  const RECAP_GAME_ID = "game-efl-demo-1765614117580";
+
   // article state for highlights card (single article test)
   const [highlightArticle, setHighlightArticle] = useState<{
     title: string;
@@ -73,6 +78,14 @@ export default function Home() {
     gameId?: string;
     keyMoments?: string[];
   } | null>(null);
+
+  // article state for featured game (separate from highlight)
+  const [featuredArticle, setFeaturedArticle] = useState<{
+    title: string;
+    dek?: string;
+    keyMoments?: string[];
+  } | null>(null);
+
   const [articleLoading, setArticleLoading] = useState(false);
   const [articleError, setArticleError] = useState<string | null>(null);
 
@@ -102,6 +115,73 @@ export default function Home() {
   useEffect(() => {
     setRandomKeyMomentIndex(derivedRandomKeyMomentIndex);
   }, [derivedRandomKeyMomentIndex]);
+
+  // Highlight image (for highlight game id)
+  const highlightImageUrl = useMemo(() => {
+    return `https://d2zq9pbfla02w4.cloudfront.net/${encodeURIComponent(
+      HIGHLIGHT_GAME_ID
+    )}_highlight.png`;
+  }, [HIGHLIGHT_GAME_ID]);
+
+  // Recap image (for recap game id)
+  const recapImageUrl = useMemo(() => {
+    return `https://d2zq9pbfla02w4.cloudfront.net/${encodeURIComponent(
+      RECAP_GAME_ID
+    )}_highlight.png`;
+  }, [RECAP_GAME_ID]);
+
+  // Featured image (for featured game id)
+  const featuredImageUrl = useMemo(() => {
+    return `https://d2zq9pbfla02w4.cloudfront.net/${encodeURIComponent(
+      FEATURED_GAME_ID
+    )}_highlight.png`;
+  }, [FEATURED_GAME_ID]);
+
+  // Featured recap audio (for featured game id)
+  const featuredRecapUrl = useMemo(() => {
+    return `https://d2nuzfnuy59hla.cloudfront.net/${encodeURIComponent(
+      FEATURED_GAME_ID
+    )}.mp3`;
+  }, [FEATURED_GAME_ID]);
+
+  // simple mock data for EFL Online dev updates/news
+  const mockEflEvents = [
+    {
+      id: "efl-dev-1",
+      label: "Dev Update",
+      title: "New Live Draft Room UI",
+      subtitle: "Real-time pick board, team needs overlay and mobile optimizations rolling out to beta next week.",
+      time: "5m ago",
+    },
+    {
+      id: "efl-dev-2",
+      label: "Tournament",
+      title: "Bitcoin Invitational II Announced",
+      subtitle: "32‑team single‑elimination bracket with dynamic seeding and expanded stat tracking.",
+      time: "28m ago",
+    },
+    {
+      id: "efl-dev-3",
+      label: "Feature Preview",
+      title: "Custom Playbooks for League Commissioners",
+      subtitle: "Upload, share and auto‑tag schemes that sync into live play‑by‑play and film rooms.",
+      time: "1h ago",
+    },
+    {
+      id: "efl-dev-4",
+      label: "Upcoming Event",
+      title: "EFL Online Dev AMA on Discord",
+      subtitle: "Roadmap deep dive: tournaments, franchise mode and creator tools — this Friday 7PM ET.",
+      time: "3h ago",
+    },
+    {
+      id: "efl-dev-5",
+      label: "Roadmap",
+      title: "Franchise Mode Early Access",
+      subtitle: "Persistent leagues, off‑season logic and scouting hub targeted for Q2 private alpha.",
+      time: "Yesterday",
+    },
+  ];
 
   async function loadTimeline() {
     try {
@@ -400,20 +480,33 @@ export default function Home() {
       .slice(0, 5);
   }, [filteredActivities]);
 
-  // pick a gameId to use for the highlight article (first game_summary with a gameId)
-  const highlightGameId = useMemo(() => {
-    const gameSummary = (filteredActivities as TimelineItem[]).find(
-      (act) => act.type === "game_summary" && act.gameId
-    );
-    return gameSummary?.gameId ?? null;
-  }, [filteredActivities]);
+  // Highlight game id (legacy callers now point to constant)
+  const highlightGameId = useMemo(() => HIGHLIGHT_GAME_ID, [HIGHLIGHT_GAME_ID]);
 
-  // load one article for highlights card
+  // derive final score for featured game from scoreboardItems
+  const featuredScore = useMemo(() => {
+    const summary = scoreboardItems.find(
+      (item) => item.gameId === FEATURED_GAME_ID
+    );
+    if (!summary || !summary.payload) return null;
+
+    const home = summary.payload.homeTeam ?? "Home";
+    const away = summary.payload.awayTeam ?? "Away";
+    const homeScore =
+      summary.payload.homeScore != null ? String(summary.payload.homeScore) : "";
+    const awayScore =
+      summary.payload.awayScore != null ? String(summary.payload.awayScore) : "";
+
+    if (homeScore === "" && awayScore === "") return null;
+
+    return { home, away, homeScore, awayScore };
+  }, [scoreboardItems, FEATURED_GAME_ID]);
+
+  // Load article for highlight card (explicitly for HIGHLIGHT_GAME_ID)
   useEffect(() => {
     console.log("[highlight] using highlightGameId:", highlightGameId);
 
     if (!highlightGameId) {
-      console.log("[highlight] highlightGameId missing, clearing article");
       setHighlightArticle(null);
       return;
     }
@@ -421,18 +514,13 @@ export default function Home() {
     let cancelled = false;
 
     (async () => {
-      // set loading state at the start of the async side-effect
       setArticleLoading(true);
       setArticleError(null);
 
-      console.log("[highlight] calling fetchHighlightArticle");
-      const article = await fetchHighlightArticle();
-      console.log("[highlight] fetchHighlightArticle response:", article);
+      // assume fetchHighlightArticle supports a gameId parameter
+      const article = await fetchHighlightArticle(highlightGameId);
 
-      if (cancelled) {
-        console.log("[highlight] request cancelled, ignoring response");
-        return;
-      }
+      if (cancelled) return;
 
       if (!article) {
         setArticleError(
@@ -443,7 +531,6 @@ export default function Home() {
         return;
       }
 
-      console.log("[highlight] loaded article title:", article.title);
       setHighlightArticle({
         title: article.title,
         dek: article.dek,
@@ -464,10 +551,57 @@ export default function Home() {
     });
 
     return () => {
-      console.log("[highlight] cancelling in-flight highlight request");
       cancelled = true;
     };
   }, [highlightGameId]);
+
+  // Helper to fetch article for FEATURED_GAME_ID
+  async function fetchFeaturedArticleForGame() {
+    try {
+      const res = await fetch(
+        `/api/articles/${encodeURIComponent(FEATURED_GAME_ID)}`
+      );
+      if (!res.ok) return null;
+      return (await res.json()) as {
+        title: string;
+        dek?: string;
+        keyMoments?: string[];
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Load article for featured game card (explicitly for FEATURED_GAME_ID)
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const article =
+        (await fetchFeaturedArticleForGame()) ||
+        (await fetchHighlightArticle(FEATURED_GAME_ID));
+
+      if (cancelled) return;
+
+      if (!article) {
+        setFeaturedArticle(null);
+        return;
+      }
+
+      setFeaturedArticle({
+        title: article.title,
+        dek: article.dek,
+        keyMoments: article.keyMoments,
+      });
+    })().catch((err) => {
+      console.error("[featured] unexpected error:", err);
+      if (!cancelled) setFeaturedArticle(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [FEATURED_GAME_ID]);
 
   // push scoreboard UI into layout slot
   useEffect(() => {
@@ -572,23 +706,157 @@ export default function Home() {
   return (
     <PodcastProvider>
       <div className="flex min-h-screen items-start justify-center bg-zinc-50 font-sans dark:bg-black">
-        <main className="w-full max-w-5xl space-y-8 py-12 px-6">
-          <header className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Activity Dashboard
-                </p>
+        <main className="w-full space-y-8 py-12 px-6">
+         
+          {/* Coverage + Highlights row (CSS-driven responsiveness) */}
+          <div className="coverage-row">
+            {/* EFL Online News – becomes left 15% at >=1280px */}
+            <section
+              className="coverage-col coverage-col--news rounded-lg bg-white shadow-sm dark:bg-[#2A2E35]"
+              style={{ padding: "12px" }}
+            >
+              <h2 className="text-lg font-medium text-black dark:text-zinc-50 text-center mb-4">
+                EFL Online News
+              </h2>
+              <div className="space-y-4 text-xs">
+                {mockEflEvents.map((evt, idx) => (
+                  <div key={evt.id}>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                        {evt.label} · {evt.time}
+                      </span>
+                      <span className="mt-1 text-[11px] font-semibold golden">
+                        {evt.title}
+                      </span>
+                      {evt.subtitle && (
+                        <span className="mt-1 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+                          {evt.subtitle}
+                        </span>
+                      )}
+                    </div>
+                    {idx < mockEflEvents.length - 1 && (
+                      <hr
+                        className="my-4 border-zinc-800/60"
+                        style={{ margin: "20px", opacity: "0.5" }}
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
-            </div>
-          </header>
+            </section>
 
-          {/* Coverage + Highlights row */}
-          <div className="flex flex-row justify-between gap-4">
-            {/* Recent Games (uses same filter) */}
-            <section className="rounded-lg bg-white p-6 shadow-sm dark:bg-[#0b0b0b]"
-            style={{ padding: "5px", width: "70%" }}>
-              <h2 className="text-lg font-medium text-black dark:text-zinc-50">
+            {/* Middle: Featured Game + Recent Coverage – middle 65% at >=1280px */}
+            <section
+              className="coverage-col coverage-col--main rounded-lg bg-white p-6 shadow-sm dark:bg-[#0b0b0b]"
+              style={{ padding: "5px" }}
+            >
+              {/* Featured Game card */}
+              {featuredArticle && (
+                <div
+                  className="mb-6 rounded-lg border golden-border bg-[#101010]"
+                  style={{ padding: "12px", boxShadow: "none" }}
+                >
+                  {/* Header row */}
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div>
+                      <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase golden">
+                        Featured Game
+                      </div>
+                      <h2 className="mt-1 text-base font-semibold golden">
+                        {featuredArticle.title}
+                      </h2>
+                      {featuredArticle.dek && (
+                        <p className="mt-1 text-xs text-zinc-400">
+                          {featuredArticle.dek}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 text-right">
+                      Game ID: {FEATURED_GAME_ID}
+                    </div>
+                  </div>
+
+                  {/* 2-column layout: image left, content right */}
+                  <div className="flex flex-row gap-4">
+                    {/* Left: Featured game image */}
+                    {featuredImageUrl && (
+                      <div className="w-1/2 rounded-sm overflow-hidden">
+                        <Image
+                          src={featuredImageUrl}
+                          alt={`Featured game ${FEATURED_GAME_ID}`}
+                          width={400}
+                          height={260}
+                          className="block"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            display: "block",
+                            paddingRight: "10px",
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Right: final score + key moments + podcast recap */}
+                    <div
+                      className="w-1/2 flex flex-col gap-3"
+                      style={{ paddingLeft: "10px" }}
+                    >
+                      {/* Final score line (large font) */}
+                      {featuredScore && (
+                        <div className="flex flex-col mb-1">
+                          <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1 text-center golden">
+                            Final Score
+                          </div>
+                          <div className="text-xl font-extrabold text-zinc-50 text-center"
+                          style={{ fontSize: '24px', fontWeight: 'bold', paddingBottom: '40px' }}>
+                            {featuredScore.home}{" "}
+                            <span className="golden">
+                              {featuredScore.homeScore}
+                            </span>{" "}
+                            <span className="text-zinc-400">–</span>{" "}
+                            <span className="golden">
+                              {featuredScore.awayScore}
+                            </span>{" "}
+                            {featuredScore.away}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Key moments list */}
+                      {Array.isArray(featuredArticle.keyMoments) &&
+                        featuredArticle.keyMoments.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
+                              Key Moments
+                            </div>
+                            <ul className="list-disc list-inside text-xs text-zinc-300 space-y-1">
+                              {featuredArticle.keyMoments.map((km, i) => (
+                                <li key={i}>{km}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                      {/* Podcast recap */}
+                      {featuredRecapUrl && (
+                        <div className="mt-1 align-self-center"
+                        style={{ width: "50%" }}>
+                          <PodcastPlayer
+                            id={FEATURED_GAME_ID}
+                            src={featuredRecapUrl}
+                            title={"Final Verdict Podcast"}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Coverage */}
+              <h2 className="text-lg font-medium text-black dark:text-zinc-50  text-center">
                 Recent Coverage
               </h2>
               <ul className="mt-4 space-y-3">
@@ -648,7 +916,7 @@ export default function Home() {
                           </div>
 
                           <div className="w-24 text-right text-xs text-zinc-500 golden"
-                            style={{ alignSelf: "center", paddingRight: "10px", fontSize: "larger" }}>
+                            style={{ alignSelf: "center", paddingRight: "50px", fontSize: "larger" }}>
                             {act.timeAgo ?? "now"}
                           </div>
                         </div>
@@ -804,11 +1072,13 @@ export default function Home() {
                 )}
               </ul>
             </section>
-            
-            {/* Highlights  */}
-            <section className="rounded-lg bg-white p-6 shadow-sm dark:bg-[#2A2E35]"
-            style={{ padding: "5px", width: "28%" }}>
-              <h2 className="text-lg font-medium text-black dark:text-zinc-50">
+
+            {/* Highlights – right 20% at >=1280px */}
+            <section
+              className="coverage-col coverage-col--highlights rounded-lg bg-white p-6 shadow-sm dark:bg-[#2A2E35]"
+              style={{ padding: "5px" }}
+            >
+              <h2 className="text-lg font-medium text-black dark:text-zinc-50 text-center">
                 News & Highlights
               </h2>
 
@@ -816,7 +1086,7 @@ export default function Home() {
               <div className="mt-4 space-y-3 text-sm">
                 {articleLoading && (
                   <p className="text-xs text-zinc-500">
-                    Loading article for {highlightGameId}…
+                    Loading article for {HIGHLIGHT_GAME_ID}…
                   </p>
                 )}
                 {!articleLoading && articleError && (
@@ -831,10 +1101,10 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() =>
-                          highlightArticle.gameId &&
+                          // ESN Recap should now always go to game-efl-demo-1765614117580
                           router.push(
                             `/articles/${encodeURIComponent(
-                              highlightArticle.gameId
+                              RECAP_GAME_ID
                             )}`
                           )
                         }
@@ -844,6 +1114,26 @@ export default function Home() {
                         <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
                           ESN Recap
                         </div>
+
+                        {/* ESN Recap image (different game) */}
+                        {recapImageUrl && (
+                          <div className="mb-2 rounded-sm overflow-hidden">
+                            <Image
+                              src={recapImageUrl}
+                              alt="ESN Recap for game game-efl-demo-1765614117580"
+                              width={600}
+                              height={320}
+                              className="block"
+                              style={{
+                                width: "100%",
+                                height: "auto",
+                                display: "block",
+                                paddingTop: "10px",
+                              }}
+                            />
+                          </div>
+                        )}
+
                         <h3 className="text-sm font-semibold mb-1 golden">
                           {highlightArticle.title}
                         </h3>
@@ -886,6 +1176,26 @@ export default function Home() {
                                   <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
                                     Highlight
                                   </div>
+
+                                  {/* article highlight image */}
+                                  {highlightImageUrl && (
+                                    <div className="mb-2 rounded-sm overflow-hidden">
+                                      <Image
+                                        src={highlightImageUrl}
+                                        alt={`Highlight for game ${HIGHLIGHT_GAME_ID}`}
+                                        width={600}
+                                        height={320}
+                                        className="block"
+                                        style={{
+                                          width: "100%",
+                                          height: "auto",
+                                          display: "block",
+                                          paddingTop: "10px",
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                  
                                   <h3 className="text-sm font-semibold mb-1 golden">
                                     {moment}
                                   </h3>
@@ -907,7 +1217,7 @@ export default function Home() {
                   !articleError &&
                   !highlightArticle && (
                     <p className="text-xs text-zinc-500">
-                      No highlight article available yet for {highlightGameId}.
+                      No highlight article available yet for {HIGHLIGHT_GAME_ID}.
                     </p>
                   )}
 
@@ -915,10 +1225,10 @@ export default function Home() {
                 <div className="w-full rounded-lg border golden-border"
                     style={{ marginBottom: "20px", boxShadow: "none" }}>
                 <button
-                            type="button"
-                            className="w-full text-left bg-[#101010]"
-                            style={{ cursor: "pointer" }}
-                          >
+                                type="button"
+                                className="w-full text-left bg-[#101010]"
+                                style={{ cursor: "pointer" }}
+                              >
                   <div className="w-full text-left">
                     <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
                       Spotlight
@@ -986,6 +1296,8 @@ export default function Home() {
               </div>
             </section>
           </div>
+
+          {/* ...rest of existing content... */}
         </main>
       </div>
     </PodcastProvider>

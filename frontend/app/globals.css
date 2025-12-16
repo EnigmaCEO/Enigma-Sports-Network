@@ -24,7 +24,7 @@
 
   /* reset body margin and use CSS variables for colors */
   body {
-    margin: 20px;
+    
     background-color: var(--background);
     color: var(--foreground);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
@@ -73,6 +73,59 @@
   :root {
     --background: #0a0b0c;
     --foreground: #F2F2F2;
+  }
+}
+
+/* responsive layout for the 3 coverage sections */
+.coverage-row {
+  /* default: stacked (1 column) via flex-column */
+  display: flex;
+  flex-direction: column;
+}
+
+.coverage-row > .coverage-col {
+  width: 100%;
+}
+
+/* default mobile order (you can tweak these numbers) */
+.coverage-col--main {
+  order: 1;        /* middle first */
+}
+.coverage-col--highlights {
+  order: 2;        /* highlights second */
+}
+.coverage-col--news {
+  order: 3;        /* news last */
+}
+
+/* >=1280px: 3 columns, 15% / 65% / 20%, in left→right = news / main / highlights */
+@media (min-width: 1280px) {
+  .coverage-row {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .coverage-row > .coverage-col {
+    flex-shrink: 0;
+  }
+
+  /* reset order for desktop */
+  .coverage-col--news {
+    order: 1;
+    flex-basis: 15%;
+    max-width: 15%;
+  }
+
+  .coverage-col--main {
+    order: 2;
+    flex-basis: 65%;
+    max-width: 65%;
+  }
+
+  .coverage-col--highlights {
+    order: 3;
+    flex-basis: 20%;
+    max-width: 20%;
   }
 }
 
