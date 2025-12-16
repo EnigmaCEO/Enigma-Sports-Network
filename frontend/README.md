@@ -1,36 +1,145 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Enigma Sports Network (ESN)
 
-## Getting Started
+**A modular AI-powered sports media and analytics network for next-generation games.**
 
-First, run the development server:
+Enigma Sports Network (ESN) is a broadcast-style infrastructure layer that transforms raw game data into professional sports coverage — including automated recaps, highlight imagery, and podcast-style commentary — without requiring live commentators or production teams.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+ESN is designed for **sports games, esports titles, and simulated leagues** that want real media gravity, persistent narratives, and shareable moments from day one.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## What ESN Does
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+ESN converts structured game events into **full broadcast artifacts**:
 
-## Learn More
+- 📰 **Journalistic Game Recap Articles**  
+  AI-generated, network-grade written recaps with named players, key moments, and professional tone.
 
-To learn more about Next.js, take a look at the following resources:
+- 🎙 **Podcast Recaps (“Final Verdict”)**  
+  Multi-voice, role-aware commentary (Host, Analyst, Color) generated from game data and rendered to audio.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- 🖼 **Highlight Hero Images**  
+  Automatically generated article images representing decisive moments of each game.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- 📊 **Coverage Hub UI**  
+  A sports-network-style frontend featuring:
+  - Game of the Day
+  - Hourly Highlights
+  - Recent Coverage
+  - Event timelines and animated score tickers
 
-## Deploy on Vercel
+All content is produced **post-game** and stored for replay, sharing, and archival — similar to a real sports network.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Why ESN Exists
+
+Most sports games suffer from:
+- Weak or repetitive post-game content
+- No meaningful media layer
+- No way for players or fans to relive moments
+- No broadcast identity
+
+ESN solves this by acting as a **media brain** for sports games:
+
+- Every game becomes content  
+- Every match leaves a narrative trail  
+- Every league feels legitimate  
+
+This is not commentary for one game.  
+This is **infrastructure for entire ecosystems**.
+
+---
+
+## Architecture Overview
+
+### High-Level Pipeline
+
+1. **Game Event Ingestion**
+   - Structured JSON from games (scores, drives, plays, turnovers)
+
+2. **AI Content Generation (Serverless)**
+   - Article generation (LLM)
+   - Podcast script generation
+   - Highlight selection logic
+
+3. **Media Rendering**
+   - Audio synthesis via ElevenLabs
+   - Image generation via OpenAI
+   - Assets stored in object storage (AWS S3)
+
+4. **Distribution Layer**
+   - ESN web UI
+   - Shareable article and podcast links
+   - Future: social embeds, feeds, syndication
+
+All components are modular and replaceable.
+
+---
+
+## Current Status
+
+**MVP — Actively Developed**
+
+- ✅ Automated ESN Recap articles
+- ✅ Podcast generation with multi-speaker dialogue
+- ✅ Audio rendering and storage
+- ✅ Article and podcast UI integration
+- ✅ Responsive, network-style frontend layout
+- 🚧 Image generation pipeline
+- 🚧 Timeline-driven storytelling
+- 🚧 Live-feel UI enhancements
+
+This MVP is designed for **grant demos, ecosystem pitches, and partner onboarding**.
+
+---
+
+## Designed For
+
+- Sports game developers
+- Esports platforms
+- Simulated or AI-driven leagues
+- Web2 / Web3 hybrid games
+- Studios that want legitimacy, retention, and shareable moments
+
+ESN is engine-agnostic, chain-agnostic, and genre-flexible.
+
+---
+
+## Guiding Principles
+
+- **Media-first** — Games deserve coverage, not just leaderboards
+- **Automation over scale** — No human production bottlenecks
+- **Network tone** — Content should feel broadcast-grade, not “AI-generated”
+- **Modular by design** — Every layer can evolve independently
+- **Honest MVPs** — No fake “live” claims or inflated promises
+
+---
+
+## Roadmap (High-Level)
+
+- Expanded highlight selection logic
+- Improved visual identity for generated images
+- Timeline-based narrative generation
+- Multi-game league summaries
+- External API for third-party game integrations
+
+---
+
+## About
+
+ESN is developed by **Enigma Games**, a long-running independent studio building sports and strategy titles across Web2 and Web3.
+
+This repository represents the **media backbone** powering current and future Enigma sports properties.
+
+---
+
+## Disclaimer
+
+Some content generated by ESN uses AI systems.
+
+All outputs are derived from real, structured game data and follow strict formatting, attribution, and content constraints.
+
+---
+
+*Enigma Sports Network — turning games into stories.*

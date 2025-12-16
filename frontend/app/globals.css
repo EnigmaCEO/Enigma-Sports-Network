@@ -129,6 +129,44 @@
   }
 }
 
+/* Scoreboard ticker animation */
+.scoreboard-ticker {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap; /* keep everything on one line */
+}
+
+/* Track = long horizontal row that moves */
+.scoreboard-ticker-track {
+  display: inline-flex;              /* children (two strips) in a row */
+  flex-wrap: nowrap;
+  animation: scoreboard-ticker-scroll 20s linear infinite;
+}
+
+/* One logical copy of the scores */
+.scoreboard-ticker-strip {
+  display: inline-flex;              /* cards in a row */
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  padding-right: 2rem;               /* gap between the looped copies */
+}
+
+/* Pause scroll on hover */
+.scoreboard-ticker:hover .scoreboard-ticker-track {
+  animation-play-state: paused;
+}
+
+@keyframes scoreboard-ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    /* With two identical strips back-to-back, -50% creates a seamless loop */
+    transform: translateX(-50%);
+  }
+}
+
 /* ...existing body rules (kept by intent) ... */
 /* If you prefer to keep the original body block instead of the one in @layer base,
    remove the body rule above and uncomment the following block. */

@@ -626,71 +626,87 @@ export default function Home() {
           </select>
         </div>
 
-        {/* Last 5 games mini-scoreboard */}
-        <div className="flex items-stretch gap-2 text-xs flex-1 overflow-x-auto">
-          {scoreboardItems.map((item) => {
-            const home = item.payload?.homeTeam ?? "Home";
-            const away = item.payload?.awayTeam ?? "Away";
-            const homeScoreNum =
-              item.payload?.homeScore != null ? Number(item.payload.homeScore) : undefined;
-            const awayScoreNum =
-              item.payload?.awayScore != null ? Number(item.payload.awayScore) : undefined;
-            const homeScore =
-              homeScoreNum != null && !Number.isNaN(homeScoreNum)
-                ? String(homeScoreNum)
-                : "";
-            const awayScore =
-              awayScoreNum != null && !Number.isNaN(awayScoreNum)
-                ? String(awayScoreNum)
-                : "";
-            const isFinal =
-              typeof item.timeAgo === "string" &&
-              item.timeAgo.toLowerCase().includes("final");
+        {/* Last 5 games mini-scoreboard, scrolling ticker */}
+        <div className="relative flex-1 overflow-hidden">
+          {scoreboardItems.length > 0 ? (
+            <div className="scoreboard-ticker">
+              {/* Animated track that moves left */}
+              <div className="scoreboard-ticker-track">
+                {[0, 1].map((loopIndex) => (
+                  <div
+                    key={loopIndex}
+                    className="scoreboard-ticker-strip"
+                    aria-hidden={loopIndex === 1 ? true : undefined}
+                  >
+                    {scoreboardItems.map((item) => {
+                      const home = item.payload?.homeTeam ?? "Home";
+                      const away = item.payload?.awayTeam ?? "Away";
+                      const homeScoreNum =
+                        item.payload?.homeScore != null ? Number(item.payload.homeScore) : undefined;
+                      const awayScoreNum =
+                        item.payload?.awayScore != null ? Number(item.payload.awayScore) : undefined;
+                      const homeScore =
+                        homeScoreNum != null && !Number.isNaN(homeScoreNum)
+                          ? String(homeScoreNum)
+                          : "";
+                      const awayScore =
+                        awayScoreNum != null && !Number.isNaN(awayScoreNum)
+                          ? String(awayScoreNum)
+                          : "";
+                      const isFinal =
+                        typeof item.timeAgo === "string" &&
+                        item.timeAgo.toLowerCase().includes("final");
 
-            const homeWinning =
-              homeScoreNum != null &&
-              awayScoreNum != null &&
-              homeScoreNum > awayScoreNum;
-            const awayWinning =
-              homeScoreNum != null &&
-              awayScoreNum != null &&
-              awayScoreNum > homeScoreNum;
+                      const homeWinning =
+                        homeScoreNum != null &&
+                        awayScoreNum != null &&
+                        homeScoreNum > awayScoreNum;
+                      const awayWinning =
+                        homeScoreNum != null &&
+                        awayScoreNum != null &&
+                        awayScoreNum > homeScoreNum;
 
-            return (
-              <div
-                key={item.id}
-                className="flex flex-col justify-between border-l first:border-l-0 pl-2 first:pl-0 min-w-[140px]"
-                style={{ width: '150px', paddingLeft: '15px', paddingRight: '15px' }}
-              >
-                <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
-                  {isFinal ? "Final" : item.timeAgo || "Live"}
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-col">
-                    <span className="text-[11px] truncate">{home}</span>
-                    <span className="text-[11px] truncate">{away}</span>
+                      return (
+                        <div
+                          key={`${loopIndex}-${item.id}`}
+                          className="flex flex-col justify-between border-l first:border-l-0 pl-2 first:pl-0 min-w-[140px]"
+                          style={{ width: '150px', paddingLeft: '15px', paddingRight: '15px' }}
+                        >
+                          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
+                            {isFinal ? "Final" : item.timeAgo || "Live"}
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-col">
+                              <span className="text-[11px] truncate">{home}</span>
+                              <span className="text-[11px] truncate">{away}</span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: homeWinning ? '900' : 'normal',
+                                }}
+                              >
+                                {homeScore !== "" ? homeScore : "\u00A0"}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: awayWinning ? '900' : 'normal',
+                                }}
+                              >
+                                {awayScore !== "" ? awayScore : "\u00A0"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span
-                      style={{fontSize: '11px', fontWeight: `${
-                        homeWinning ? '900' : "normal"
-                      }`}}
-                    >
-                      {homeScore !== "" ? homeScore : "\u00A0"}
-                    </span>
-                    <span
-                      style={{fontSize: '11px', fontWeight: `${
-                        awayWinning ? '900' : "normal"
-                      }`}}
-                    >
-                      {awayScore !== "" ? awayScore : "\u00A0"}
-                    </span>
-                  </div>
-                </div>
+                ))}
               </div>
-            );
-          })}
-          {scoreboardItems.length === 0 && (
+            </div>
+          ) : (
             <div className="text-[11px] text-zinc-500">
               No games yet for this filter.
             </div>
@@ -760,7 +776,7 @@ export default function Home() {
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div>
                       <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase golden">
-                        Featured Game
+                        Game of the Day
                       </div>
                       <h2 className="mt-1 text-base font-semibold golden">
                         {featuredArticle.title}
@@ -857,7 +873,7 @@ export default function Home() {
 
               {/* Recent Coverage */}
               <h2 className="text-lg font-medium text-black dark:text-zinc-50  text-center">
-                Recent Coverage
+                Daily Game Coverage
               </h2>
               <ul className="mt-4 space-y-3">
                 {filteredActivities.length > 0 ? (
@@ -1112,7 +1128,7 @@ export default function Home() {
                         style={{ cursor: "pointer" }}
                       >
                         <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
-                          ESN Recap
+                          ESN Daily Recap
                         </div>
 
                         {/* ESN Recap image (different game) */}
@@ -1174,7 +1190,7 @@ export default function Home() {
                               return (
                                 <>
                                   <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
-                                    Highlight
+                                    Highlight of the hour
                                   </div>
 
                                   {/* article highlight image */}
@@ -1231,7 +1247,7 @@ export default function Home() {
                               >
                   <div className="w-full text-left">
                     <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
-                      Spotlight
+                      Player Spotlight
                     </div>
 
                     {/* full-width image under header */}
@@ -1268,7 +1284,7 @@ export default function Home() {
                     style={{ cursor: "pointer" }}
                   >
                     <div className="text-[10px] font-semibold tracking-wide text-zinc-500 uppercase mb-1 golden">
-                      Tournament
+                      Season 1: Tournament Results
                     </div>
 
                     {/* full-width image under header */}
