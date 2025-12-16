@@ -66,12 +66,6 @@ function SiteHeader() {
             <li>
               <Link href="/">Home</Link>
             </li>
-            <li>
-              <Link href="/">Investors</Link>
-            </li>
-            <li>
-              <Link href="/">Pitch Deck</Link>
-            </li>
           </ul>
         </nav>
       </div>
