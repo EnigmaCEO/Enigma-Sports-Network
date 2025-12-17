@@ -9,6 +9,21 @@
 			{
 				"type": "aws-sam",
 				"request": "direct-invoke",
+				"name": "api_esn_generateVideo:index.handler (nodejs24.x)",
+				"invokeTarget": {
+					"target": "code",
+					"projectRoot": "${workspaceFolder}/backend/lambdas/api_esn_generateVideo",
+					"lambdaHandler": "index.handler"
+				},
+				"lambda": {
+					"runtime": "nodejs24.x",
+					"payload": {},
+					"environmentVariables": {}
+				}
+			},
+			{
+				"type": "aws-sam",
+				"request": "direct-invoke",
 				"name": "api_esn_generateArticleHighlight:index.handler (nodejs24.x)",
 				"invokeTarget": {
 					"target": "code",

@@ -134,7 +134,7 @@ export default function Home() {
   const featuredImageUrl = useMemo(() => {
     return `https://d2zq9pbfla02w4.cloudfront.net/${encodeURIComponent(
       FEATURED_GAME_ID
-    )}_highlight.png`;
+    )}_video.mp4`;
   }, [FEATURED_GAME_ID]);
 
   // Featured recap audio (for featured game id)
@@ -791,14 +791,16 @@ export default function Home() {
 
                   {/* Featured game body: layout driven by CSS (see globals.css) */}
                   <div className="featured-body featured-body--stack featured-body--side">
-                    {/* Featured game image */}
+                    {/* Featured game video (replaces image) */}
                     {featuredImageUrl && (
                       <div className="featured-body__image">
-                        <Image
-                          src={featuredImageUrl}
-                          alt={`Featured game ${FEATURED_GAME_ID}`}
-                          width={400}
-                          height={260}
+                        <video
+                          src={featuredImageUrl.replace(/\.png$/i, ".mp4")}
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          controls
                           className="block"
                           style={{
                             width: "100%",

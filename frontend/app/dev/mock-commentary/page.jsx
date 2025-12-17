@@ -15,6 +15,8 @@ export default function DevCommentaryPage() {
   const [articleResult, setArticleResult] = useState(null);
   // New: response from article image lambda
   const [articleImageResult, setArticleImageResult] = useState(null);
+  // new: response from article video lambda
+  const [articleVideoResult, setArticleVideoResult] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [debug, setDebug] = useState('');
@@ -26,6 +28,8 @@ export default function DevCommentaryPage() {
   const articleLambdaUrl = process.env.NEXT_PUBLIC_LAMBDA_ARTICLE || '';
   // New: article image lambda URL
   const articleImageLambdaUrl = process.env.NEXT_PUBLIC_LAMBDA_ARTICLE_IMAGE || '';
+  // new: article video lambda URL
+  const articleVideoLambdaUrl = process.env.NEXT_PUBLIC_LAMBDA_ARTICLE_VIDEO || '';
 
   async function callDirect(e) {
     e && e.preventDefault();
@@ -271,6 +275,46 @@ export default function DevCommentaryPage() {
     }
   }
 
+  // New: call generateArticleVideo lambda via proxy
+  async function callGenerateArticleVideo(e) {
+    e && e.preventDefault();
+    setError(null);
+    setArticleVideoResult(null);
+    setLoading(true);
+
+    try {
+      if (!gameId) {
+        setError('enter gameId');
+        return;
+      }
+      if (!articleVideoLambdaUrl) {
+        setError('NEXT_PUBLIC_LAMBDA_ARTICLE_VIDEO not set; cannot call article video lambda.');
+        return;
+      }
+
+      const res = await fetch('/api/proxyGenerateArticleVideo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lambdaUrl: articleVideoLambdaUrl,
+          payload: { gameId },
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      setArticleVideoResult({ status: res.status, body: data });
+
+      if (!res.ok) {
+        setError(`GenerateArticleVideo returned ${res.status}`);
+      }
+    } catch (err) {
+      console.error('GenerateArticleVideo call failed:', err);
+      setError(String(err?.message || err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const canGeneratePodcast = hasValidCommentary(commentary);
 
   return (
@@ -325,6 +369,16 @@ export default function DevCommentaryPage() {
             style={{ padding: '8px 12px' }}
           >
             Generate Article Image
+          </button>
+
+          {/* New: Generate Article Video from article JSON in S3 */}
+          <button
+            type="button"
+            onClick={callGenerateArticleVideo}
+            disabled={loading || !gameId}
+            style={{ padding: '8px 12px' }}
+          >
+            Generate Article Video
           </button>
         </div>
       </form>
@@ -396,6 +450,27 @@ export default function DevCommentaryPage() {
             {typeof articleImageResult.body === 'string'
               ? articleImageResult.body
               : JSON.stringify(articleImageResult.body, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {/* New: show article video lambda response */}
+      {articleVideoResult && (
+        <div>
+          <h2>GenerateArticleVideo Response (status {articleVideoResult.status})</h2>
+          <pre
+            style={{
+              background: '#e8fff0',
+              padding: 12,
+              borderRadius: 6,
+              maxHeight: 360,
+              overflow: 'auto',
+              color: 'black',
+            }}
+          >
+            {typeof articleVideoResult.body === 'string'
+              ? articleVideoResult.body
+              : JSON.stringify(articleVideoResult.body, null, 2)}
           </pre>
         </div>
       )}
