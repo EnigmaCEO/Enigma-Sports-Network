@@ -12,6 +12,9 @@ ESN is designed for **sports games, esports titles, and simulated leagues** that
 
 ESN converts structured game events into **full broadcast artifacts**:
 
+- **AI Video Highlight Generation (VEO)**
+  For the **Game of the Day**, ESN automatically generates an **8-second cinematic highlight video** using **Google’s VEO video generation model**.
+
 - 📰 **Journalistic Game Recap Articles**  
   AI-generated, network-grade written recaps with named players, key moments, and professional tone.
 
@@ -28,7 +31,7 @@ ESN converts structured game events into **full broadcast artifacts**:
   - Recent Coverage
   - Event timelines and animated score tickers
 
-All content is produced **post-game** and stored for replay, sharing, and archival — similar to a real sports network.
+All content is produced from **real-time game events** and stored for replay, sharing, and archival — similar to a real sports network.
 
 ---
 
@@ -64,6 +67,7 @@ This is **infrastructure for entire ecosystems**.
    - Highlight selection logic
 
 3. **Media Rendering**
+   - Video generation via Google VEO
    - Audio synthesis via ElevenLabs
    - Image generation via OpenAI
    - Assets stored in object storage (AWS S3)
@@ -74,6 +78,28 @@ This is **infrastructure for entire ecosystems**.
    - Future: social embeds, feeds, syndication
 
 All components are modular and replaceable.
+
+---
+
+## Media Pipeline Overview
+
+```text
+Game Events
+↓
+Structured Game Data (JSON)
+↓
+Article Generation (LLM)
+↓
+Highlight Image Generation
+↓
+VEO Video Generation (Game of the Day only)
+↓
+Audio Recap Generation (Podcast)
+↓
+S3 Media Storage
+↓
+ESN Web UI (Articles, Video, Audio, Highlights)
+```
 
 ---
 
